@@ -1,0 +1,31 @@
+[2026-08-12 autonomous baseline]
+USER_AUTHORIZATION=local baseline commit; no push; no remote
+BASE_SHA=fa36b9d6f3f61c5d586607a79b0a8fc39f2c6b44
+
+[2026-08-12 governed validation]
+$ ./project/governance-check.sh --actor agent --base fa36b9d... --changed-file <ticket-owned paths>
+GOV-PASS: passed (0 errors, 0 warnings)
+$ Draft202012Validator.check_schema
+Draft 2020-12 metaschema: PASS
+$ python3 standard/conformance.py --all
+FIRST_RUN=FAIL ContractError:sensitive data channel on the declared secretFree assertion
+REMEDIATION=allow only the closed boolean security assertion; retain sensitive-key rejection
+$ python3 standard/conformance.py --all
+ok=true positiveVariants=4 adversarialRejected=15
+schemaDigest=sha256:8abc84eaf6e04fd2c2469bf0b5dbc5682cc450c58a3554c373b177627f0130e6
+grammarDigest=sha256:11cd4b8308115d5f6926700c093e6c1dab0d511070777e233adfac99e7d92b74
+$ docker compose build && docker compose run --rm conformance
+PASS network=none read_only=true cap_drop=ALL no_new_privileges=true
+$ git diff --check
+PASS
+2026-08-12 publication revalidation
+python3 standard/conformance.py --all
+ok=true positiveVariants=4 adversarialRejected=15
+schemaDigest=sha256:8abc84eaf6e04fd2c2469bf0b5dbc5682cc450c58a3554c373b177627f0130e6
+grammarDigest=sha256:11cd4b8308115d5f6926700c093e6c1dab0d511070777e233adfac99e7d92b74
+docker compose run --rm conformance
+ok=true positiveVariants=4 adversarialRejected=15
+./project/governance-check.sh --actor agent
+GOV-PASS: passed (0 errors, 0 warnings)
+git diff --check
+exit=0

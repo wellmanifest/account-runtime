@@ -6,3 +6,9 @@
 - No human participant identity or content was generated.
 - Recorded the five-file standard boundary, Docker conformance requirement and
   session execution authorization.
+- Added account graph, runtime binding, invocation and receipt contracts.
+- Added constrained invocation generation and 15 adversarial fail-closed cases.
+- Documented readiness, restart/session persistence, noVNC/KVM and artifact flow.
+- Recorded explicit authority to create the public remote, commit the bounded
+  diff, push the ticket branch and open a pull request without treating that
+  request as trusted merge approval.

@@ -1,6 +1,7 @@
 # Roadmap
 
-- [!] [ticket-001](project/ticket-001/README.md) — draft created; validation
-  blocked until an initial local Git baseline is explicitly authorized.
-- [ ] Establish the initial reviewed Git baseline and publish through a trusted PR.
+- [x] [ticket-001](project/ticket-001/README.md) — v1 is locally defined and
+  validated against the exact baseline; trusted publication remains pending.
+- [ ] Publish the validated ticket branch and obtain trusted exact-head review
+  through its pull request.
 - [ ] Add implementation mapping profiles only after the neutral contract is reviewed.
