@@ -1,0 +1,42 @@
+{
+  "managedFiles": {
+    ".github/workflows/new-project-governance.yml": "6cfcc3398e256fe59108050628fbc20cf90849adc66bdecd5078af513ea779f2",
+    ".governance/approval-evidence.schema.json": "488dee5a4bfbf221206acc45947fce5283eb5e80614ec0ef478b5d618cc4eb83",
+    ".governance/branch_lifecycle_check.py": "02e80224fb659feccf39ffa6afebd053d68f0f44137e842ea9cff6e7170b8c9d",
+    ".governance/change-evaluation.schema.json": "d16c9cbc9646ad7d98b7a5ecd56594e4572df968a0ee0c63e969b2a8c3b9490a",
+    ".governance/check_required_checks.py": "c763e14ee118af591b80f3186fa6d6f16c4f525b222935605458dc349928ba17",
+    ".governance/decision-record.schema.json": "08278322846b6da5e8306c0661c23fd1bcdf4a003f8ef75aac0d33299a4cd357",
+    ".governance/decision_record.py": "ffbdf4f8d1184e210b5dc824c7b889e56523ebd6351b323b14e7ff23abb063f5",
+    ".governance/diagnostics.json": "d5c1a901489c737cbdcd2fadad372294632c99287fbbed65733d9cf7d9d9b6f5",
+    ".governance/diagnostics.schema.json": "8704209cfe05575b3690f9d96b15b076a1dbb5ecef495e85e52bbc850d7ca0f6",
+    ".governance/error/GOV-TICKET-001.md": "5ddc3c05b8bc2193f0b1796cd5fb383f62151464ab9539aec854eca9bfa3d2a5",
+    ".governance/error/GOV-TICKET-ALLOCATION.md": "2da9115e3dcac3c5e84b04bf0fc2c6a73975526272f45405a4fe0c05fe51c772",
+    ".governance/error/GOV-WORKSPACE-LIFECYCLE.md": "36598538a6703597d3cbf8785292591ee6480ded43c7fa830ef6606ed8220557",
+    ".governance/error/README.md": "e8486dd29f52ca3fee96ed6881a62c38141864cde5aa1adea2b16d22b2feefaa",
+    ".governance/governance_check.py": "45819797a9ce1af8bcde578ce5a6f74012d7c3ea3d133695cec7407ab35c5cc3",
+    ".governance/intent.schema.json": "ca0f818ff72e0a766425c83fbb45f326f1ddbc31118838f1c94159dabbb6655e",
+    ".governance/lock.schema.json": "ad80c98f800a4a3310870336dcdaf0aa689cc4988f71084d25d76bea2df1242f",
+    ".governance/manifest.base.json": "5ad137f5e7e7fe78090cd158813cfe304d2a8d8815272c9d8ca8a43e144b48e3",
+    ".governance/manifest.schema.json": "d48f258e3397ac2d8c5010e5ccdeef9eaf87b0b015d56798d11d5916c5f70a18",
+    ".governance/package-manifest.json": "1af2aef49c74d198e9263d9067f940560197941c75dadf81e71c354cc9bad3c3",
+    ".governance/required-checks.json": "579e008e2dba9110ce45d34fdd96768fa28c003a339cf338378d28fe00fb83a2",
+    ".governance/stack-profiles.json": "47a3b899553968dfc5e0565c0de525f13aadde5dacae4556614572a731054f0e",
+    ".governance/work-classification.dsl.json": "3a947c41938c0b8ef1717957f313ff9248764252735182de30b1f2d6878748b6",
+    ".governance/work-classification.schema.json": "f5c2b518238543589e4f8d3805cc6455e19d6919643644aaeae034abf472a467",
+    ".governance/workspace_lifecycle_check.py": "f51e30d4d4b87df338f8246423146db5caf8a7c6997453760f804cc0391c1cd8",
+    "AGENTS.md": "e3278fec5301bc8714cfb4700e19bff8136ac0f395de9495a8bd7c8ce5d0a2d1",
+    "project/governance-check.bat": "2f0091eba580c0a24b5d1a127fb82963521a4b8512ff9d3b85e679b66b5e361c",
+    "project/governance-check.sh": "158ca61531b8e51ba484de8eb6f91f4e4fbba908ae3c8db678b63bf6bab49923",
+    "project/new-ticket.sh": "e44778eaa8c66b40d75ddf44e4845f47156f92d0a6522e9b81470baec0b19c8a",
+    "project/readme.sh": "b41a9c88374e6de0439284a4561fb11b1b482039bc5ba1bcf6683fd59b1a3968",
+    "scripts/runtime.sh": "8d5c91808d3c126fc84018a12f0b39dd49194fb8b01c5e024932ff9cf2a7a7e2"
+  },
+  "schema": "new-project.lock/v1",
+  "standard": {
+    "id": "wellmanifest/new-project",
+    "publicationStatus": "published",
+    "sourceRepository": "wellmanifest/new-project",
+    "sourceRevision": "32238076db1e95ed60dbc878b71fab1588ff53d6",
+    "version": "0.15.0"
+  }
+}

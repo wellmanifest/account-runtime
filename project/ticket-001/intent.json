@@ -1,0 +1,19 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-001",
+  "summary": "Define account runtime and identity graph standard",
+  "workstream": "integration",
+  "classification": {"kind": "FEATURE", "priority": "P1", "origin": "requested"},
+  "allowedPaths": [
+    "project/ticket-001/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "docs/**",
+    "standard/**"
+  ],
+  "forbiddenPaths": ["project/ticket-*/user-*.md"],
+  "stacks": ["docker"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null
+}
