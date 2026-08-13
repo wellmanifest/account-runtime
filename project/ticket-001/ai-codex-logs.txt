@@ -39,3 +39,11 @@ exit=0
 - docker compose run --rm conformance: PASS with the same immutable digests.
 - ./project/governance-check.sh --actor agent: GOV-PASS, 0 errors, 0 warnings.
 - git diff --check: PASS.
+
+2026-08-13 trusted publication
+- Pull request: wellmanifest/account-runtime#1.
+- Hosted governance run 31745088066: PASS.
+- Validator run 31745124553: success.
+- Dedicated actor ifuri-validator-agent approved exact head
+  14792883a813fbe6f244ff2f28a26e31fa9c3b53 with deterministic authority.
+- Explicit merge: 8de00991250e524eba5ef20cae5453e316bb3760.
