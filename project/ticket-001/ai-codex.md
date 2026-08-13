@@ -29,14 +29,21 @@ projects, but it must expose only bounded, account/tool-specific MCP actions.
 - Adopted published `wellmanifest/new-project` v0.15.0 at its exact revision.
 - Selected a separate standard because account/runtime semantics do not belong
   to generic POA, DSL or deployment contracts.
+- Added the closed four-variant schema, request GBNF, dependency-free
+  conformance runner and two visual architecture documents.
+- Corrected the first receipt check so the explicit `secretFree: true`
+  assertion is allowed while undeclared sensitive channels still fail closed.
+- Validated the exact-baseline scope, metaschema, 15 adversarial rejections and
+  isolated Docker execution.
 
 ## Blockers
 
-- `GOV-DELIVERY-001`: no initial Git baseline exists, so an exact
-  `acceptedBaseSha` cannot be declared. Further implementation validation is
-  paused pending explicit authority for a local baseline commit.
-- New authority remains required for destructive action, secret access, new
-  external coordination, material objective expansion and trusted merge.
+- The initial-baseline blocker is resolved by the explicitly authorized local
+  commit `fa36b9d6f3f61c5d586607a79b0a8fc39f2c6b44`.
+- The user's explicit push request authorizes public remote creation,
+  ticket-branch publication and pull-request creation for this bounded diff.
+- New authority remains required for destructive action, secret access,
+  material objective expansion and trusted merge.
 
 ## Risks and controls
 
@@ -46,3 +53,10 @@ projects, but it must expose only bounded, account/tool-specific MCP actions.
 - Persistence can preserve compromised sessions; health and revocation remain
   explicit runtime states.
 - MCP is transport only; grants and intent checks stay external and exact-bound.
+
+## Acceptance evidence
+
+- AC-01/02/04/05: `standard/account-runtime.schema.json` and conformance report.
+- AC-03: `standard/account-runtime.v1.gbnf` plus raw argv/shell/credential cases.
+- AC-06: `docs/ARCHITECTURE.md` and `docs/LOGIC_FLOW.md`.
+- AC-07: raw outputs in `ai-codex-logs.txt`.

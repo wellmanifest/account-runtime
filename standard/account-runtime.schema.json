@@ -1,0 +1,291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wellmanifest.dev/schemas/account-runtime/v1",
+  "title": "Wellmanifest account graph and runtime contracts v1",
+  "description": "Closed provider-neutral contracts for observed service accounts, isolated runtime bindings, scoped invocations and secret-free receipts. Documents describe data and never grant authority.",
+  "oneOf": [
+    {"$ref": "#/$defs/graph"},
+    {"$ref": "#/$defs/runtimeBinding"},
+    {"$ref": "#/$defs/request"},
+    {"$ref": "#/$defs/receipt"}
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[a-z][a-z0-9._:-]*$"
+    },
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "sha256Ref": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "identityRef": {"type": "string", "pattern": "^identity://[a-z0-9.-]+/[a-z][a-z0-9._:-]*$", "maxLength": 240},
+    "serviceRef": {"type": "string", "pattern": "^service://[a-z0-9.-]+/[a-z][a-z0-9._:-]*$", "maxLength": 240},
+    "providerRef": {"type": "string", "pattern": "^provider://[a-z0-9.-]+/[a-z][a-z0-9._:-]*$", "maxLength": 240},
+    "toolRef": {"type": "string", "pattern": "^tool://[a-z0-9.-]+/[a-z][a-z0-9._:-]*$", "maxLength": 240},
+    "runtimeRef": {"type": "string", "pattern": "^runtime://[a-z0-9.-]+/[a-z][a-z0-9._:-]*$", "maxLength": 240},
+    "projectRef": {"type": "string", "pattern": "^project://[a-z0-9.-]+/[a-z][a-z0-9._:-]*$", "maxLength": 240},
+    "containerRef": {"type": "string", "pattern": "^container://[a-z0-9.-]+/[a-z][a-z0-9._:-]*$", "maxLength": 240},
+    "mcpEndpointRef": {
+      "type": "string",
+      "pattern": "^mcp://[a-z0-9.-]+/accounts/[a-z][a-z0-9._:-]*/providers/[a-z][a-z0-9._:-]*/tools/[a-z][a-z0-9._:-]*$",
+      "maxLength": 320
+    },
+    "evidenceRef": {"type": "string", "pattern": "^evidence://[a-z0-9.-]+/[A-Za-z0-9._:/-]+/r[1-9][0-9]*$", "maxLength": 320},
+    "artifactRef": {"type": "string", "pattern": "^artifact://[a-z0-9.-]+/[A-Za-z0-9._:/-]+/r[1-9][0-9]*$", "maxLength": 320},
+    "schemaRef": {"type": "string", "pattern": "^schema://[a-z0-9.-]+/[A-Za-z0-9._:/-]+/v[1-9][0-9]*$", "maxLength": 320},
+    "vaultRef": {"type": "string", "pattern": "^vault://[a-z0-9.-]+/[A-Za-z0-9._:/-]+$", "maxLength": 320},
+    "intentRef": {"type": "string", "pattern": "^intent://[a-z0-9.-]+/[A-Za-z0-9._:/-]+$", "maxLength": 320},
+    "grantRef": {"type": "string", "pattern": "^grant://[a-z0-9.-]+/[A-Za-z0-9._:/-]+$", "maxLength": 320},
+    "origin": {"type": "string", "pattern": "^https://[a-z0-9.-]+(?::[0-9]{1,5})?$", "maxLength": 260},
+    "accountHandle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value", "classification"],
+      "properties": {
+        "kind": {"const": "email"},
+        "value": {"type": "string", "format": "email", "maxLength": 254},
+        "classification": {"const": "restricted"}
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "handle", "storeRefs", "active"],
+      "properties": {
+        "ref": {"$ref": "#/$defs/identityRef"},
+        "handle": {"$ref": "#/$defs/accountHandle"},
+        "storeRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^store://[a-z0-9.-]+/[A-Za-z0-9._:/-]+$", "maxLength": 240}
+        },
+        "active": {"type": "boolean"}
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "name", "origins", "classification"],
+      "properties": {
+        "ref": {"$ref": "#/$defs/serviceRef"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 160},
+        "origins": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"$ref": "#/$defs/origin"}},
+        "providerRef": {"$ref": "#/$defs/providerRef"},
+        "classification": {"enum": ["provider", "tool", "generic-service", "unknown"]}
+      }
+    },
+    "link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identityRef", "serviceRef", "relation", "confidence", "evidenceRefs", "observedAt"],
+      "properties": {
+        "identityRef": {"$ref": "#/$defs/identityRef"},
+        "serviceRef": {"$ref": "#/$defs/serviceRef"},
+        "relation": {"enum": ["credential_observed", "session_observed", "account_inferred", "account_verified"]},
+        "confidence": {"enum": ["observed", "inferred", "verified"]},
+        "evidenceRefs": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"$ref": "#/$defs/evidenceRef"}},
+        "observedAt": {"type": "string", "format": "date-time"},
+        "verifiedAt": {"type": "string", "format": "date-time"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"relation": {"const": "account_verified"}}, "required": ["relation"]},
+          "then": {"required": ["verifiedAt"], "properties": {"confidence": {"const": "verified"}}}
+        }
+      ]
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "kind", "sourceRef", "digest", "collectedAt", "secretsDiscarded", "valuesPersisted"],
+      "properties": {
+        "ref": {"$ref": "#/$defs/evidenceRef"},
+        "kind": {"enum": ["browser-login-origin", "browser-session-marker", "cli-profile-marker", "provider-verification", "operator-review"]},
+        "sourceRef": {"type": "string", "pattern": "^(?:store|profile|probe)://[a-z0-9.-]+/[A-Za-z0-9._:/-]+$", "maxLength": 320},
+        "digest": {"$ref": "#/$defs/sha256Ref"},
+        "collectedAt": {"type": "string", "format": "date-time"},
+        "secretsDiscarded": {"const": true},
+        "valuesPersisted": {"const": false}
+      }
+    },
+    "graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["$schema", "schema", "snapshotId", "observedAt", "identities", "services", "links", "evidence"],
+      "properties": {
+        "$schema": {"const": "https://wellmanifest.dev/schemas/account-runtime/v1"},
+        "schema": {"const": "wellmanifest.account-graph/v1"},
+        "snapshotId": {"$ref": "#/$defs/identifier"},
+        "observedAt": {"type": "string", "format": "date-time"},
+        "identities": {"type": "array", "maxItems": 100000, "items": {"$ref": "#/$defs/identity"}},
+        "services": {"type": "array", "maxItems": 100000, "items": {"$ref": "#/$defs/service"}},
+        "links": {"type": "array", "maxItems": 1000000, "items": {"$ref": "#/$defs/link"}},
+        "evidence": {"type": "array", "maxItems": 1000000, "items": {"$ref": "#/$defs/evidence"}}
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profileVolumeRef", "projectMountRef", "restartPolicy", "sessionRecovery", "profileIsolation", "hostExposure", "clipboard"],
+      "properties": {
+        "profileVolumeRef": {"type": "string", "pattern": "^volume://[a-z0-9.-]+/[A-Za-z0-9._:-]+$", "maxLength": 240},
+        "projectMountRef": {"$ref": "#/$defs/projectRef"},
+        "restartPolicy": {"const": "unless-stopped"},
+        "sessionRecovery": {"const": "verify-after-restart"},
+        "profileIsolation": {"const": "per-account"},
+        "hostExposure": {"enum": ["localhost-only", "authenticated-private-ingress"]},
+        "clipboard": {"enum": ["disabled", "brokered-text-only"]}
+      }
+    },
+    "runtimeState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["installation", "authentication", "endpoint", "project", "readiness", "observedAt"],
+      "properties": {
+        "installation": {"enum": ["missing", "installed_unverified", "available"]},
+        "authentication": {"enum": ["missing", "profile_present", "available_auth_unverified", "verified", "expired", "revoked"]},
+        "endpoint": {"enum": ["unreachable", "reachable_unverified", "verified"]},
+        "project": {"enum": ["unmounted", "mounted_read_only", "mounted_read_write"]},
+        "readiness": {"enum": ["initialization_required", "session_unverified", "ready", "degraded", "revoked"]},
+        "observedAt": {"type": "string", "format": "date-time"}
+      }
+    },
+    "control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operations", "rawShell", "arbitraryArgv", "mcpSchemaRequired", "gbnfRequired", "humanVisible"],
+      "properties": {
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {"enum": ["inspect", "plan", "invoke", "cancel", "focus", "close"]}
+        },
+        "rawShell": {"const": false},
+        "arbitraryArgv": {"const": false},
+        "mcpSchemaRequired": {"const": true},
+        "gbnfRequired": {"const": true},
+        "humanVisible": {"const": true},
+        "kvmConnectorRef": {"type": "string", "pattern": "^connector://[a-z0-9.-]+/[A-Za-z0-9._:/-]+/v[1-9][0-9]*$", "maxLength": 320}
+      }
+    },
+    "secretResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "valuesInDocument", "refs"],
+      "properties": {
+        "mode": {"const": "runtime-vault"},
+        "valuesInDocument": {"const": false},
+        "refs": {"type": "array", "maxItems": 32, "uniqueItems": true, "items": {"$ref": "#/$defs/vaultRef"}}
+      }
+    },
+    "runtimeBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["$schema", "schema", "runtimeRef", "graphDigest", "identityRef", "providerRef", "toolRef", "projectRef", "containerRef", "mcpEndpointRef", "persistence", "state", "control", "secretResolution"],
+      "properties": {
+        "$schema": {"const": "https://wellmanifest.dev/schemas/account-runtime/v1"},
+        "schema": {"const": "wellmanifest.account-runtime-binding/v1"},
+        "runtimeRef": {"$ref": "#/$defs/runtimeRef"},
+        "graphDigest": {"$ref": "#/$defs/sha256Ref"},
+        "identityRef": {"$ref": "#/$defs/identityRef"},
+        "providerRef": {"$ref": "#/$defs/providerRef"},
+        "toolRef": {"$ref": "#/$defs/toolRef"},
+        "projectRef": {"$ref": "#/$defs/projectRef"},
+        "containerRef": {"$ref": "#/$defs/containerRef"},
+        "mcpEndpointRef": {"$ref": "#/$defs/mcpEndpointRef"},
+        "persistence": {"$ref": "#/$defs/persistence"},
+        "state": {"$ref": "#/$defs/runtimeState"},
+        "control": {"$ref": "#/$defs/control"},
+        "secretResolution": {"$ref": "#/$defs/secretResolution"}
+      }
+    },
+    "requestTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtimeRef", "identityRef", "providerRef", "toolRef", "projectRef"],
+      "properties": {
+        "runtimeRef": {"$ref": "#/$defs/runtimeRef"},
+        "identityRef": {"$ref": "#/$defs/identityRef"},
+        "providerRef": {"$ref": "#/$defs/providerRef"},
+        "toolRef": {"$ref": "#/$defs/toolRef"},
+        "projectRef": {"$ref": "#/$defs/projectRef"}
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "promptRef", "inputRefs", "outputContractRef"],
+      "properties": {
+        "kind": {"const": "llm-query"},
+        "promptRef": {"$ref": "#/$defs/artifactRef"},
+        "inputRefs": {"type": "array", "maxItems": 32, "uniqueItems": true, "items": {"$ref": "#/$defs/artifactRef"}},
+        "outputContractRef": {"$ref": "#/$defs/schemaRef"}
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timeoutSeconds", "maxArtifacts", "maxOutputBytes"],
+      "properties": {
+        "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 3600},
+        "maxArtifacts": {"type": "integer", "minimum": 0, "maximum": 64},
+        "maxOutputBytes": {"type": "integer", "minimum": 1, "maximum": 16777216}
+      }
+    },
+    "requestAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "intentRef", "grantRef", "planHash", "singleUse"],
+      "properties": {
+        "mode": {"const": "external-exact-grant"},
+        "intentRef": {"$ref": "#/$defs/intentRef"},
+        "grantRef": {"$ref": "#/$defs/grantRef"},
+        "planHash": {"$ref": "#/$defs/sha256"},
+        "singleUse": {"const": true}
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["$schema", "schema", "requestId", "operation", "endpointRef", "target", "task", "limits", "authority"],
+      "properties": {
+        "$schema": {"const": "https://wellmanifest.dev/schemas/account-runtime/v1"},
+        "schema": {"const": "wellmanifest.account-runtime-request/v1"},
+        "requestId": {"$ref": "#/$defs/identifier"},
+        "operation": {"enum": ["inspect", "plan", "invoke"]},
+        "endpointRef": {"$ref": "#/$defs/mcpEndpointRef"},
+        "target": {"$ref": "#/$defs/requestTarget"},
+        "task": {"$ref": "#/$defs/task"},
+        "limits": {"$ref": "#/$defs/limits"},
+        "authority": {"$ref": "#/$defs/requestAuthority"}
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["$schema", "schema", "requestId", "runtimeRef", "planHash", "inputHash", "outcome", "startedAt", "completedAt", "artifactRefs", "evidenceRefs", "secretFree", "handleRedacted", "promptInline", "outputInline"],
+      "properties": {
+        "$schema": {"const": "https://wellmanifest.dev/schemas/account-runtime/v1"},
+        "schema": {"const": "wellmanifest.account-runtime-receipt/v1"},
+        "requestId": {"$ref": "#/$defs/identifier"},
+        "runtimeRef": {"$ref": "#/$defs/runtimeRef"},
+        "planHash": {"$ref": "#/$defs/sha256"},
+        "inputHash": {"$ref": "#/$defs/sha256"},
+        "outputHash": {"$ref": "#/$defs/sha256"},
+        "outcome": {"enum": ["denied", "initialization_required", "auth_unverified", "executed", "executed_unverified", "failed", "cancelled"]},
+        "startedAt": {"type": "string", "format": "date-time"},
+        "completedAt": {"type": "string", "format": "date-time"},
+        "artifactRefs": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"$ref": "#/$defs/artifactRef"}},
+        "evidenceRefs": {"type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true, "items": {"$ref": "#/$defs/evidenceRef"}},
+        "secretFree": {"const": true},
+        "handleRedacted": {"const": true},
+        "promptInline": {"const": false},
+        "outputInline": {"const": false}
+      }
+    }
+  }
+}

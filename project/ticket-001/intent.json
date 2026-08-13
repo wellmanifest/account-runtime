@@ -15,5 +15,43 @@
   "stacks": ["docker"],
   "dependsOn": [],
   "conflictsWith": [],
-  "integrationTicket": null
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "fa36b9d6f3f61c5d586607a79b0a8fc39f2c6b44",
+    "targetBranch": "main",
+    "outcome": "A provider-neutral standard for evidence-backed account graphs, isolated account runtimes, scoped MCP/CLI invocation and secret-free receipts.",
+    "nonGoals": [
+      "Decrypt or publish credential values",
+      "Provide a generic remote shell",
+      "Treat detected software or an auth profile as authenticated readiness",
+      "Grant an LLM, DSL document or container execution authority",
+      "Create or operate provider accounts"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Separate observed identity/service evidence from externally authorized runtime bindings; address tools through typed account/provider/tool endpoints and never through raw shell input.",
+      "components": [
+        {"name": "normative-contract", "paths": ["standard/account-runtime.schema.json", "standard/account-runtime.v1.gbnf"]},
+        {"name": "conformance-and-guidance", "paths": ["standard/conformance.py", "docs/ARCHITECTURE.md", "docs/LOGIC_FLOW.md"]}
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": ["Introduce the experimental wellmanifest.account-runtime/v1 document family"],
+      "ui": {"impact": "none", "states": [], "evidence": []},
+      "rollback": "Remove the five ticket-owned standard files while preserving the governed baseline and ticket evidence."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {"criterion": "AC-03", "commands": ["python3 standard/conformance.py --all"], "evidence": "project/ticket-001/ai-codex-logs.txt"},
+      {"criterion": "AC-07", "commands": ["docker compose run --rm conformance", "./project/governance-check.sh --actor agent"], "evidence": "project/ticket-001/ai-codex-logs.txt"}
+    ]
+  }
 }
