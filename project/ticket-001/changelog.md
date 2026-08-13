@@ -12,3 +12,9 @@
 - Recorded explicit authority to create the public remote, commit the bounded
   diff, push the ticket branch and open a pull request without treating that
   request as trusted merge approval.
+
+## 2026-08-13 Validator secret-scan follow-up
+
+- Replaced the origin-query adversarial fixture `token=x` with the inert
+  assignment `token=redacted` so the case still rejects query-bearing origins
+  without looking like embedded credential material.

@@ -357,7 +357,7 @@ def run_all() -> dict[str, Any]:
     cases: list[tuple[str, Any]] = []
     bad = copy.deepcopy(graph); bad["links"][0]["evidenceRefs"] = []; cases.append(("link-without-evidence", lambda: validate_graph(c, bad)))
     bad = copy.deepcopy(graph); bad["evidence"][0]["valuesPersisted"] = True; cases.append(("secret-values-persisted", lambda: validate_graph(c, bad)))
-    bad = copy.deepcopy(graph); bad["services"][0]["origins"] = ["https://example.test/login?token=x"]; cases.append(("origin-query-channel", lambda: validate_graph(c, bad)))
+    bad = copy.deepcopy(graph); bad["services"][0]["origins"] = ["https://example.test/login?token=redacted"]; cases.append(("origin-query-channel", lambda: validate_graph(c, bad)))
     bad = copy.deepcopy(runtime); bad["state"]["authentication"] = "available_auth_unverified"; cases.append(("false-ready-auth", lambda: validate_runtime(c, bad)))
     bad = copy.deepcopy(runtime); bad["control"]["rawShell"] = True; cases.append(("raw-shell", lambda: validate_runtime(c, bad)))
     bad = copy.deepcopy(runtime); bad["control"]["arbitraryArgv"] = True; cases.append(("raw-argv", lambda: validate_runtime(c, bad)))
