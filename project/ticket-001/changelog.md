@@ -15,6 +15,6 @@
 
 ## 2026-08-13 Validator secret-scan follow-up
 
-- Replaced the origin-query adversarial fixture `token=x` with the inert
-  assignment `token=redacted` so the case still rejects query-bearing origins
-  without looking like embedded credential material.
+- Replaced the credential-shaped origin-query fixture with a neutral mode
+  parameter. The adversarial case still proves that every query-bearing origin
+  is rejected without placing secret-like material in the pull-request patch.

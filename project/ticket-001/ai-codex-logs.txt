@@ -29,3 +29,13 @@ ok=true positiveVariants=4 adversarialRejected=15
 GOV-PASS: passed (0 errors, 0 warnings)
 git diff --check
 exit=0
+
+2026-08-13 exact-head Validator remediation
+- Replaced the credential-shaped query fixture with a neutral mode parameter.
+- The origin-query adversarial case remains fail-closed.
+- Removed every secret-scanner signature from the complete pull-request patch.
+- python3 standard/conformance.py --all: PASS, 4 positive variants and 15
+  adversarial cases rejected.
+- docker compose run --rm conformance: PASS with the same immutable digests.
+- ./project/governance-check.sh --actor agent: GOV-PASS, 0 errors, 0 warnings.
+- git diff --check: PASS.
