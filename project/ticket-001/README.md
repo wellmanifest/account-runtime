@@ -2,8 +2,8 @@
 
 - **ID**: ticket-001
 - **Owner**: unresolved:human
-- **Status**: IN_PROGRESS
-- **Workflow state**: PUBLICATION
+- **Status**: DONE
+- **Workflow state**: DONE
 - **Created**: 2026-08-12
 
 ## Goal and scope
@@ -64,5 +64,7 @@ bypass was used.
 - Networkless, read-only, capability-dropped Docker conformance: passed.
 - `git diff --check`: passed.
 - Publication revalidation passed with `GOV-PASS` (0 errors, 0 warnings), four
-  positive variants and 15 adversarial rejections. Ticket-branch publication
-  is authorized; trusted exact-head review and merge remain pending.
+  positive variants and 15 adversarial rejections.
+- Validator approved exact head `14792883a813fbe6f244ff2f28a26e31fa9c3b53`
+  after the neutral-fixture remediation, and explicit merge published it as
+  `8de00991250e524eba5ef20cae5453e316bb3760`.
