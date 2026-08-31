@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dependency-free conformance checks for account-runtime v1."""
+"""Dependency-free conformance checks for account-runtime and service-access v1."""
 
 from __future__ import annotations
 
@@ -19,8 +19,18 @@ GRAMMAR_PATH = ROOT / "account-runtime.v1.gbnf"
 SCHEMA_DIGEST = "8abc84eaf6e04fd2c2469bf0b5dbc5682cc450c58a3554c373b177627f0130e6"
 GRAMMAR_DIGEST = "11cd4b8308115d5f6926700c093e6c1dab0d511070777e233adfac99e7d92b74"
 SCHEMA_URI = "https://wellmanifest.dev/schemas/account-runtime/v1"
+SERVICE_ACCESS_SCHEMA_PATH = ROOT / "service-access.schema.json"
+SERVICE_ACCESS_EXAMPLE_PATH = ROOT / "service-access.example.json"
+SERVICE_ACCESS_SCHEMA_URI = "https://wellmanifest.dev/schemas/service-access/v1"
+SERVICE_ACCESS_SCHEMA_DIGEST = "5deb3dd610124c391dcca548aded18ef3a1c2dd7a0b2e4fa4c4b770da3a796e3"
+SERVICE_ACCESS_EXAMPLE_DIGEST = "e6fb640b1e8a2ea83a9c90c70ee97c30a79d021a52e6727e74455e8c9a3b5ecc"
 SENSITIVE = re.compile(r"(?:password|passwd|token|secret|cookie|api[-_]?key|credential|private[-_]?key)", re.I)
 SAFE_SECURITY_ASSERTIONS = {"secretFree"}
+SECRET_MATERIAL = re.compile(
+    r"(?:-----BEGIN [A-Z ]*PRIVATE KEY-----|\bgh[pousr]_[A-Za-z0-9]{20,}|\bsk-[A-Za-z0-9_-]{20,}|"
+    r"(?:password|passwd|token|secret|api[-_]?key)\s*[:=]\s*[^\s,;]{4,})",
+    re.I,
+)
 
 
 class ContractError(ValueError):
@@ -98,6 +108,45 @@ class Contracts:
             if value.get("type") == "object" and value.get("additionalProperties") is not False:
                 raise ContractError("object schema is not closed")
             for child in value.values():
+                self._closed(child)
+
+
+class ServiceAccessContracts:
+    def __init__(self) -> None:
+        self.schema = json.loads(SERVICE_ACCESS_SCHEMA_PATH.read_text("utf-8"))
+        self.example = json.loads(SERVICE_ACCESS_EXAMPLE_PATH.read_text("utf-8"))
+        defs = self.schema.get("$defs", {})
+        names = (
+            "identifier", "sha256Ref", "providerRef", "schemaRef",
+            "connectorRef", "operationRef", "producerRef", "policyRef",
+            "registryRef", "strategyRef", "repositoryRef", "twinRef",
+        )
+        self.patterns = {name: re.compile(defs[name]["pattern"]) for name in names}
+
+    def ref(self, name: str, value: Any) -> str:
+        if not isinstance(value, str) or self.patterns[name].fullmatch(value) is None:
+            raise ContractError(f"SVCACCESS-REF-001: invalid {name}")
+        return value
+
+    def integrity(self) -> None:
+        if self.schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
+            raise ContractError("SVCACCESS-DOC-001: unexpected schema dialect")
+        if self.schema.get("$id") != SERVICE_ACCESS_SCHEMA_URI:
+            raise ContractError("SVCACCESS-DOC-001: unexpected schema identifier")
+        if digest(canonical(self.schema)) != SERVICE_ACCESS_SCHEMA_DIGEST:
+            raise ContractError("SVCACCESS-DOC-001: schema digest mismatch")
+        if digest(canonical(self.example)) != SERVICE_ACCESS_EXAMPLE_DIGEST:
+            raise ContractError("SVCACCESS-DOC-001: example digest mismatch")
+        self._closed(self.schema)
+
+    def _closed(self, value: Any) -> None:
+        if isinstance(value, dict):
+            if value.get("type") == "object" and value.get("additionalProperties") is not False:
+                raise ContractError("SVCACCESS-DOC-001: object schema is not closed")
+            for child in value.values():
+                self._closed(child)
+        elif isinstance(value, list):
+            for child in value:
                 self._closed(child)
         elif isinstance(value, list):
             for child in value:
@@ -350,38 +399,315 @@ def validate_receipt(c: Contracts, value: Any) -> None:
     if value["secretFree"] is not True or value["handleRedacted"] is not True or value["promptInline"] is not False or value["outputInline"] is not False: raise ContractError("receipt contains unsafe inline data")
 
 
+def bounded_list(value: Any, code: str, *, minimum: int = 0) -> list[Any]:
+    if not isinstance(value, list) or len(value) < minimum:
+        raise ContractError(f"{code}: expected a bounded list")
+    return value
+
+
+def unique_list(value: Any, code: str, *, minimum: int = 0) -> list[Any]:
+    value = bounded_list(value, code, minimum=minimum)
+    try:
+        unique = len(set(value)) == len(value)
+    except TypeError as error:
+        raise ContractError(f"{code}: list contains a non-scalar value") from error
+    if not unique:
+        raise ContractError(f"{code}: duplicate list member")
+    return value
+
+
+def reject_service_secret_material(value: Any) -> None:
+    if isinstance(value, dict):
+        for child in value.values():
+            reject_service_secret_material(child)
+    elif isinstance(value, list):
+        for child in value:
+            reject_service_secret_material(child)
+    elif isinstance(value, str) and SECRET_MATERIAL.search(value):
+        raise ContractError("SVCACCESS-SECRET-001: credential material is forbidden")
+
+
+def validate_service_access(c: ServiceAccessContracts, value: Any) -> None:
+    reject_service_secret_material(value)
+    value = exact(value, {
+        "$schema", "schema", "catalogId", "sourceRevision", "serviceTypes",
+        "profiles", "gaps", "boundary",
+    })
+    if value["$schema"] != SERVICE_ACCESS_SCHEMA_URI or value["schema"] != "wellmanifest.service-access-catalog/v1":
+        raise ContractError("SVCACCESS-DOC-001: unsupported catalog schema")
+    c.ref("identifier", value["catalogId"])
+    c.ref("sha256Ref", value["sourceRevision"])
+
+    expected_boundary = {
+        "acts": False,
+        "authority": "evidence-only",
+        "knowledgeGrantsAuthority": False,
+        "credentialValuesAllowed": False,
+        "providerAccountCreationAllowed": False,
+        "gapFallback": "knowledge-gap",
+        "supervisorDecisionScope": "declared-profiles-only",
+        "supervisorMayAddOperations": False,
+        "supervisorMayGrantAuthority": False,
+    }
+    boundary = exact(value["boundary"], set(expected_boundary))
+    if boundary != expected_boundary:
+        raise ContractError("SVCACCESS-AUTHORITY-001: catalog boundary is unsafe")
+
+    service_types: set[str] = set()
+    for item in bounded_list(value["serviceTypes"], "SVCACCESS-DOC-001", minimum=1):
+        item = exact(item, {"id", "protocols", "credentialKinds"})
+        service_type = c.ref("identifier", item["id"])
+        if service_type in service_types:
+            raise ContractError("SVCACCESS-DOC-001: duplicate service type")
+        service_types.add(service_type)
+        for protocol in unique_list(item["protocols"], "SVCACCESS-DOC-001", minimum=1):
+            c.ref("identifier", protocol)
+        for kind in unique_list(item["credentialKinds"], "SVCACCESS-DOC-001"):
+            c.ref("identifier", kind)
+
+    profile_ids: set[str] = set()
+    covered: set[str] = set()
+    profile_keys: set[tuple[str, str, str]] = set()
+    for profile in bounded_list(value["profiles"], "SVCACCESS-DOC-001"):
+        profile = exact(profile, {
+            "id", "providerRefs", "serviceTypes", "mode", "accountEvidence",
+            "credentialEvidence", "governance", "connector", "mutationControl",
+            "readback", "producedCredentialKinds", "boundary",
+        })
+        profile_id = c.ref("identifier", profile["id"])
+        if profile_id in profile_ids:
+            raise ContractError("SVCACCESS-DOC-001: duplicate profile")
+        profile_ids.add(profile_id)
+        providers = unique_list(profile["providerRefs"], "SVCACCESS-REF-001", minimum=1)
+        for ref in providers:
+            c.ref("providerRef", ref)
+        profile_services = unique_list(profile["serviceTypes"], "SVCACCESS-DOC-001", minimum=1)
+        for service_type in profile_services:
+            c.ref("identifier", service_type)
+            if service_type not in service_types:
+                raise ContractError("SVCACCESS-DOC-001: profile uses undeclared service type")
+            covered.add(service_type)
+        mode = profile["mode"]
+        if mode not in {"observe", "provision"}:
+            raise ContractError("SVCACCESS-DOC-001: unsupported profile mode")
+        for provider in providers:
+            for service_type in profile_services:
+                key = (provider, service_type, mode)
+                if key in profile_keys:
+                    raise ContractError("SVCACCESS-DOC-001: ambiguous profile coverage")
+                profile_keys.add(key)
+
+        account = exact(profile["accountEvidence"], {
+            "accountContractRef", "accountQueryOperationRefs", "requiredRelation",
+            "liveObservationRequired", "freshnessRequired",
+        })
+        c.ref("schemaRef", account["accountContractRef"])
+        if account["accountContractRef"] != "schema://wellmanifest.dev/account-runtime/v1":
+            raise ContractError("SVCACCESS-ACCOUNT-001: parent account contract is not pinned")
+        for ref in unique_list(account["accountQueryOperationRefs"], "SVCACCESS-REF-001", minimum=1):
+            c.ref("operationRef", ref)
+        if account["requiredRelation"] != "account_verified" or account["liveObservationRequired"] is not True or account["freshnessRequired"] is not True:
+            raise ContractError("SVCACCESS-ACCOUNT-001: parent account evidence is insufficient")
+
+        credential = exact(profile["credentialEvidence"], {
+            "metadataQueryOperationRef", "metadataOnly", "requiredFieldKinds",
+            "targetBindingRequired",
+        })
+        c.ref("operationRef", credential["metadataQueryOperationRef"])
+        if credential["metadataOnly"] is not True or credential["targetBindingRequired"] is not True:
+            raise ContractError("SVCACCESS-SECRET-001: credential evidence is not metadata-only")
+        for kind in unique_list(credential["requiredFieldKinds"], "SVCACCESS-DOC-001"):
+            c.ref("identifier", kind)
+
+        governance = exact(profile["governance"], {"policyRefs", "registryRefs", "strategyRefs"})
+        for field, ref_type in (("policyRefs", "policyRef"), ("registryRefs", "registryRef"), ("strategyRefs", "strategyRef")):
+            for ref in unique_list(governance[field], "SVCACCESS-REF-001", minimum=1):
+                c.ref(ref_type, ref)
+
+        connector = exact(
+            profile["connector"],
+            {"connectorRef", "capabilities", "preflightOperationRefs"},
+            {"mutationOperationRef", "producerIntentRef"},
+        )
+        c.ref("connectorRef", connector["connectorRef"])
+        for capability in unique_list(connector["capabilities"], "SVCACCESS-DOC-001", minimum=1):
+            c.ref("identifier", capability)
+        for ref in unique_list(connector["preflightOperationRefs"], "SVCACCESS-REF-001", minimum=1):
+            c.ref("operationRef", ref)
+        if "mutationOperationRef" in connector:
+            c.ref("operationRef", connector["mutationOperationRef"])
+        if "producerIntentRef" in connector:
+            c.ref("producerRef", connector["producerIntentRef"])
+
+        control = exact(profile["mutationControl"], {
+            "mode", "twoPhase", "planHashRequired",
+            "externalSingleUseGrantRequired", "applyReceiptRequired",
+        })
+        no_effect_control = {
+            "mode": "none",
+            "twoPhase": False,
+            "planHashRequired": False,
+            "externalSingleUseGrantRequired": False,
+            "applyReceiptRequired": False,
+        }
+        exact_plan_control = {
+            "mode": "exact-plan-single-use-grant",
+            "twoPhase": True,
+            "planHashRequired": True,
+            "externalSingleUseGrantRequired": True,
+            "applyReceiptRequired": True,
+        }
+
+        readback = exact(profile["readback"], {
+            "queryOperationRefs", "twinRef", "blueprintRef", "revisionRequired",
+            "independentObservationRequired", "updatesInventory",
+        })
+        for ref in unique_list(readback["queryOperationRefs"], "SVCACCESS-REF-001", minimum=1):
+            c.ref("operationRef", ref)
+        c.ref("twinRef", readback["twinRef"])
+        blueprint = exact(readback["blueprintRef"], {
+            "blueprintId", "version", "definitionUri", "definitionDigest", "immutable",
+        })
+        if blueprint != {
+            "blueprintId": "service-observe-repair",
+            "version": "v1",
+            "definitionUri": "lifecycle://wellmanifest.com/service-observe-repair/v1",
+            "definitionDigest": "sha256:36aba6a39af52a1d485da3ad48aa7e5fa671472be76090e9fef1ae39bb5b6870",
+            "immutable": True,
+        }:
+            raise ContractError("SVCACCESS-READBACK-001: Twin lifecycle blueprint is not pinned")
+        if readback["revisionRequired"] is not True or readback["independentObservationRequired"] is not True or readback["updatesInventory"] is not True:
+            raise ContractError("SVCACCESS-READBACK-001: Twin readback is not independent and revisioned")
+
+        produced = unique_list(profile["producedCredentialKinds"], "SVCACCESS-DOC-001")
+        for kind in produced:
+            c.ref("identifier", kind)
+        profile_boundary = exact(profile["boundary"], {
+            "knowledgeGrantsAuthority", "credentialValuesAllowed",
+            "parentAccountMustBeVerified", "accountCreation",
+        })
+        if profile_boundary["knowledgeGrantsAuthority"] is not False or profile_boundary["credentialValuesAllowed"] is not False or profile_boundary["parentAccountMustBeVerified"] is not True:
+            raise ContractError("SVCACCESS-AUTHORITY-001: profile boundary is unsafe")
+        account_creation = profile_boundary["accountCreation"]
+        if account_creation not in {"none", "provider-child"}:
+            raise ContractError("SVCACCESS-ACCOUNT-001: provider account creation is forbidden")
+
+        if mode == "observe":
+            if "mutationOperationRef" in connector or "producerIntentRef" in connector or control != no_effect_control or produced or account_creation != "none":
+                raise ContractError("SVCACCESS-MUTATION-001: observe profile contains an effect path")
+        else:
+            if "mutationOperationRef" not in connector or control != exact_plan_control:
+                raise ContractError("SVCACCESS-MUTATION-001: provision profile lacks exact-plan control")
+        if produced and "producerIntentRef" not in connector:
+            raise ContractError("SVCACCESS-MUTATION-001: credential output lacks a reviewed producer")
+        if account_creation == "provider-child" and (mode != "provision" or not produced or "producerIntentRef" not in connector):
+            raise ContractError("SVCACCESS-ACCOUNT-001: child account lacks its parent-bound producer")
+
+    gap_keys: set[tuple[str, str, str]] = set()
+    for gap in bounded_list(value["gaps"], "SVCACCESS-GAP-001"):
+        gap = exact(gap, {
+            "serviceType", "providerRef", "mode", "reasonCode",
+            "requiredOwnerRef", "requiredCapability",
+        })
+        service_type = c.ref("identifier", gap["serviceType"])
+        if service_type not in service_types:
+            raise ContractError("SVCACCESS-GAP-001: gap uses undeclared service type")
+        covered.add(service_type)
+        provider = c.ref("providerRef", gap["providerRef"])
+        if gap["mode"] not in {"observe", "provision"}:
+            raise ContractError("SVCACCESS-GAP-001: unsupported gap mode")
+        c.ref("identifier", gap["reasonCode"])
+        c.ref("repositoryRef", gap["requiredOwnerRef"])
+        c.ref("identifier", gap["requiredCapability"])
+        key = (provider, service_type, gap["mode"])
+        if key in gap_keys or key in profile_keys:
+            raise ContractError("SVCACCESS-GAP-001: gap contradicts declared profile coverage")
+        gap_keys.add(key)
+
+    if covered != service_types:
+        raise ContractError("SVCACCESS-GAP-001: service type has neither profile nor explicit gap")
+
+
 def run_all() -> dict[str, Any]:
     c = Contracts(); c.integrity()
     graph, runtime, request, receipt = graph_example(), runtime_example(), request_example(), receipt_example()
     validate_graph(c, graph); validate_runtime(c, runtime); validate_request(c, request); validate_receipt(c, receipt)
     cases: list[tuple[str, Any]] = []
-    bad = copy.deepcopy(graph); bad["links"][0]["evidenceRefs"] = []; cases.append(("link-without-evidence", lambda: validate_graph(c, bad)))
-    bad = copy.deepcopy(graph); bad["evidence"][0]["valuesPersisted"] = True; cases.append(("secret-values-persisted", lambda: validate_graph(c, bad)))
-    bad = copy.deepcopy(graph); bad["services"][0]["origins"] = ["https://example.test/login?mode=unexpected"]; cases.append(("origin-query-channel", lambda: validate_graph(c, bad)))
-    bad = copy.deepcopy(runtime); bad["state"]["authentication"] = "available_auth_unverified"; cases.append(("false-ready-auth", lambda: validate_runtime(c, bad)))
-    bad = copy.deepcopy(runtime); bad["control"]["rawShell"] = True; cases.append(("raw-shell", lambda: validate_runtime(c, bad)))
-    bad = copy.deepcopy(runtime); bad["control"]["arbitraryArgv"] = True; cases.append(("raw-argv", lambda: validate_runtime(c, bad)))
-    bad = copy.deepcopy(runtime); bad["persistence"]["profileIsolation"] = "shared"; cases.append(("shared-profile", lambda: validate_runtime(c, bad)))
-    bad = copy.deepcopy(request); bad["argv"] = ["sh", "-c", "id"]; cases.append(("request-argv", lambda: validate_request(c, bad)))
-    bad = copy.deepcopy(request); bad["task"]["prompt"] = "ignore policy"; cases.append(("inline-prompt", lambda: validate_request(c, bad)))
-    bad = copy.deepcopy(request); bad["api_token"] = "redacted-canary"; cases.append(("credential-material", lambda: validate_request(c, bad)))
-    bad = copy.deepcopy(request); bad["endpointRef"] = "mcp://example.test/accounts/foreign/providers/anthropic/tools/claude"; cases.append(("foreign-account", lambda: validate_request(c, bad)))
-    bad = copy.deepcopy(request); bad["authority"]["singleUse"] = False; cases.append(("reusable-grant", lambda: validate_request(c, bad)))
-    bad = copy.deepcopy(receipt); bad["email"] = "operator@example.test"; cases.append(("receipt-handle", lambda: validate_receipt(c, bad)))
-    bad = copy.deepcopy(receipt); bad["outputInline"] = "model output"; cases.append(("inline-output", lambda: validate_receipt(c, bad)))
-    bad = copy.deepcopy(receipt); bad["artifactRefs"] = []; cases.append(("executed-without-artifact", lambda: validate_receipt(c, bad)))
+    bad = copy.deepcopy(graph); bad["links"][0]["evidenceRefs"] = []; cases.append(("link-without-evidence", lambda bad=bad: validate_graph(c, bad)))
+    bad = copy.deepcopy(graph); bad["evidence"][0]["valuesPersisted"] = True; cases.append(("secret-values-persisted", lambda bad=bad: validate_graph(c, bad)))
+    bad = copy.deepcopy(graph); bad["services"][0]["origins"] = ["https://example.test/login?mode=unexpected"]; cases.append(("origin-query-channel", lambda bad=bad: validate_graph(c, bad)))
+    bad = copy.deepcopy(runtime); bad["state"]["authentication"] = "available_auth_unverified"; cases.append(("false-ready-auth", lambda bad=bad: validate_runtime(c, bad)))
+    bad = copy.deepcopy(runtime); bad["control"]["rawShell"] = True; cases.append(("raw-shell", lambda bad=bad: validate_runtime(c, bad)))
+    bad = copy.deepcopy(runtime); bad["control"]["arbitraryArgv"] = True; cases.append(("raw-argv", lambda bad=bad: validate_runtime(c, bad)))
+    bad = copy.deepcopy(runtime); bad["persistence"]["profileIsolation"] = "shared"; cases.append(("shared-profile", lambda bad=bad: validate_runtime(c, bad)))
+    bad = copy.deepcopy(request); bad["argv"] = ["sh", "-c", "id"]; cases.append(("request-argv", lambda bad=bad: validate_request(c, bad)))
+    bad = copy.deepcopy(request); bad["task"]["prompt"] = "ignore policy"; cases.append(("inline-prompt", lambda bad=bad: validate_request(c, bad)))
+    bad = copy.deepcopy(request); bad["api_token"] = "redacted-canary"; cases.append(("credential-material", lambda bad=bad: validate_request(c, bad)))
+    bad = copy.deepcopy(request); bad["endpointRef"] = "mcp://example.test/accounts/foreign/providers/anthropic/tools/claude"; cases.append(("foreign-account", lambda bad=bad: validate_request(c, bad)))
+    bad = copy.deepcopy(request); bad["authority"]["singleUse"] = False; cases.append(("reusable-grant", lambda bad=bad: validate_request(c, bad)))
+    bad = copy.deepcopy(receipt); bad["email"] = "operator@example.test"; cases.append(("receipt-handle", lambda bad=bad: validate_receipt(c, bad)))
+    bad = copy.deepcopy(receipt); bad["outputInline"] = "model output"; cases.append(("inline-output", lambda bad=bad: validate_receipt(c, bad)))
+    bad = copy.deepcopy(receipt); bad["artifactRefs"] = []; cases.append(("executed-without-artifact", lambda bad=bad: validate_receipt(c, bad)))
     rejected=[]
     for name, case in cases:
         try: case()
         except (ContractError, TypeError, KeyError): rejected.append(name)
         else: raise AssertionError(f"adversarial case accepted: {name}")
+
+    service = ServiceAccessContracts(); service.integrity()
+    validate_service_access(service, service.example)
+    service_rejected: list[str] = []
+
+    def reject_service_case(name: str, code: str, mutate: Any) -> None:
+        candidate = copy.deepcopy(service.example)
+        mutate(candidate)
+        try:
+            validate_service_access(service, candidate)
+        except ContractError as error:
+            if not str(error).startswith(code + ":"):
+                raise AssertionError(f"{name} rejected as {error}, expected {code}") from error
+            service_rejected.append(name)
+        else:
+            raise AssertionError(f"service-access adversarial case accepted: {name}")
+
+    reject_service_case("catalog-acts", "SVCACCESS-AUTHORITY-001", lambda d: d["boundary"].update(acts=True))
+    reject_service_case("supervisor-adds-operation", "SVCACCESS-AUTHORITY-001", lambda d: d["boundary"].update(supervisorMayAddOperations=True))
+    reject_service_case("unverified-parent-account", "SVCACCESS-ACCOUNT-001", lambda d: d["profiles"][0]["accountEvidence"].update(requiredRelation="account_inferred"))
+    reject_service_case("stale-parent-account", "SVCACCESS-ACCOUNT-001", lambda d: d["profiles"][0]["accountEvidence"].update(freshnessRequired=False))
+    reject_service_case("observe-mutation", "SVCACCESS-MUTATION-001", lambda d: d["profiles"][1]["connector"].update(mutationOperationRef="operation://example.test/hosting/subscription/create/v1"))
+    reject_service_case("provision-without-two-phase", "SVCACCESS-MUTATION-001", lambda d: d["profiles"][0]["mutationControl"].update(twoPhase=False))
+    reject_service_case("mutable-operation-ref", "SVCACCESS-REF-001", lambda d: d["profiles"][0]["connector"].update(mutationOperationRef="operation://example.test/hosting/api-key/bootstrap"))
+    reject_service_case("missing-revisioned-readback", "SVCACCESS-READBACK-001", lambda d: d["profiles"][0]["readback"].update(revisionRequired=False))
+    reject_service_case("unpinned-twin-lifecycle", "SVCACCESS-READBACK-001", lambda d: d["profiles"][0]["readback"]["blueprintRef"].update(immutable=False))
+    reject_service_case("credential-without-producer", "SVCACCESS-MUTATION-001", lambda d: d["profiles"][0]["connector"].pop("producerIntentRef"))
+    reject_service_case("child-without-produced-credential", "SVCACCESS-ACCOUNT-001", lambda d: d["profiles"][2].update(producedCredentialKinds=[]))
+    reject_service_case("provider-account-creation", "SVCACCESS-ACCOUNT-001", lambda d: d["profiles"][2]["boundary"].update(accountCreation="provider-tenant"))
+    reject_service_case("secret-material", "SVCACCESS-SECRET-001", lambda d: d.update(secretMaterial="sk-" + "a" * 30))
+    reject_service_case("undeclared-service-type", "SVCACCESS-DOC-001", lambda d: d["profiles"][0].update(serviceTypes=["undeclared-service"]))
+    reject_service_case("gap-profile-contradiction", "SVCACCESS-GAP-001", lambda d: d["gaps"].append({
+        "serviceType": "subscription",
+        "providerRef": "provider://example.test/hosting-control-plane",
+        "mode": "observe",
+        "reasonCode": "operation-not-reviewed",
+        "requiredOwnerRef": "repository://example.test/connectors",
+        "requiredCapability": "subscription.inventory",
+    }))
+    reject_service_case("uncovered-service-type", "SVCACCESS-GAP-001", lambda d: d.update(gaps=[]))
     return {
         "schema": "wellmanifest.account-runtime-conformance/v1",
         "ok": True,
         "schemaDigest": "sha256:" + SCHEMA_DIGEST,
         "grammarDigest": "sha256:" + GRAMMAR_DIGEST,
-        "positiveVariants": 4,
+        "positiveVariants": 5,
         "adversarialRejected": rejected,
+        "serviceAccess": {
+            "schema": "wellmanifest.service-access-conformance/v1",
+            "schemaDigest": "sha256:" + SERVICE_ACCESS_SCHEMA_DIGEST,
+            "exampleDigest": "sha256:" + SERVICE_ACCESS_EXAMPLE_DIGEST,
+            "profilesAccepted": len(service.example["profiles"]),
+            "gapsAccepted": len(service.example["gaps"]),
+            "adversarialRejected": service_rejected,
+        },
     }
 
 

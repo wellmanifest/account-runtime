@@ -1,0 +1,252 @@
+{
+  "$schema": "https://wellmanifest.dev/schemas/service-access/v1",
+  "schema": "wellmanifest.service-access-catalog/v1",
+  "catalogId": "neutral-hosting-service-access",
+  "sourceRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "serviceTypes": [
+    {
+      "id": "api-credential",
+      "protocols": ["api", "https"],
+      "credentialKinds": ["api-key"]
+    },
+    {
+      "id": "subscription",
+      "protocols": ["api"],
+      "credentialKinds": []
+    },
+    {
+      "id": "ssh-access",
+      "protocols": ["ssh"],
+      "credentialKinds": ["private-key", "username-password"]
+    },
+    {
+      "id": "sftp-access",
+      "protocols": ["sftp"],
+      "credentialKinds": ["private-key", "username-password"]
+    },
+    {
+      "id": "database",
+      "protocols": ["mysql", "postgresql"],
+      "credentialKinds": ["username-password"]
+    }
+  ],
+  "profiles": [
+    {
+      "id": "hosting-api-key-bootstrap",
+      "providerRefs": ["provider://example.test/hosting-control-plane"],
+      "serviceTypes": ["api-credential"],
+      "mode": "provision",
+      "accountEvidence": {
+        "accountContractRef": "schema://wellmanifest.dev/account-runtime/v1",
+        "accountQueryOperationRefs": [
+          "operation://example.test/hosting/account/query-status/v1"
+        ],
+        "requiredRelation": "account_verified",
+        "liveObservationRequired": true,
+        "freshnessRequired": true
+      },
+      "credentialEvidence": {
+        "metadataQueryOperationRef": "operation://example.test/vault/metadata/query/v1",
+        "metadataOnly": true,
+        "requiredFieldKinds": ["username-password"],
+        "targetBindingRequired": true
+      },
+      "governance": {
+        "policyRefs": ["policy://example.test/service-access/hosting/v1"],
+        "registryRefs": ["registry://example.test/connectors/hosting/v1"],
+        "strategyRefs": ["strategy://example.test/service-access/select-hosting/v1"]
+      },
+      "connector": {
+        "connectorRef": "connector://example.test/hosting/control-plane/v1",
+        "capabilities": ["account-auth.inspect", "api-key.bootstrap"],
+        "preflightOperationRefs": [
+          "operation://example.test/hosting/account/query-status/v1"
+        ],
+        "mutationOperationRef": "operation://example.test/hosting/api-key/bootstrap/v1",
+        "producerIntentRef": "producer://example.test/hosting/api-key-bootstrap/v1"
+      },
+      "mutationControl": {
+        "mode": "exact-plan-single-use-grant",
+        "twoPhase": true,
+        "planHashRequired": true,
+        "externalSingleUseGrantRequired": true,
+        "applyReceiptRequired": true
+      },
+      "readback": {
+        "queryOperationRefs": [
+          "operation://example.test/hosting/account/query-status/v1",
+          "operation://example.test/vault/metadata/query/v1"
+        ],
+        "twinRef": "twin://example.test/hosting/account-access",
+        "blueprintRef": {
+          "blueprintId": "service-observe-repair",
+          "version": "v1",
+          "definitionUri": "lifecycle://wellmanifest.com/service-observe-repair/v1",
+          "definitionDigest": "sha256:36aba6a39af52a1d485da3ad48aa7e5fa671472be76090e9fef1ae39bb5b6870",
+          "immutable": true
+        },
+        "revisionRequired": true,
+        "independentObservationRequired": true,
+        "updatesInventory": true
+      },
+      "producedCredentialKinds": ["api-key"],
+      "boundary": {
+        "knowledgeGrantsAuthority": false,
+        "credentialValuesAllowed": false,
+        "parentAccountMustBeVerified": true,
+        "accountCreation": "none"
+      }
+    },
+    {
+      "id": "hosting-subscription-observation",
+      "providerRefs": ["provider://example.test/hosting-control-plane"],
+      "serviceTypes": ["subscription"],
+      "mode": "observe",
+      "accountEvidence": {
+        "accountContractRef": "schema://wellmanifest.dev/account-runtime/v1",
+        "accountQueryOperationRefs": [
+          "operation://example.test/hosting/account/query-subscriptions/v1"
+        ],
+        "requiredRelation": "account_verified",
+        "liveObservationRequired": true,
+        "freshnessRequired": true
+      },
+      "credentialEvidence": {
+        "metadataQueryOperationRef": "operation://example.test/vault/metadata/query/v1",
+        "metadataOnly": true,
+        "requiredFieldKinds": ["api-key"],
+        "targetBindingRequired": true
+      },
+      "governance": {
+        "policyRefs": ["policy://example.test/service-access/hosting/v1"],
+        "registryRefs": ["registry://example.test/connectors/hosting/v1"],
+        "strategyRefs": ["strategy://example.test/service-access/select-hosting/v1"]
+      },
+      "connector": {
+        "connectorRef": "connector://example.test/hosting/control-plane/v1",
+        "capabilities": ["subscription.inventory"],
+        "preflightOperationRefs": [
+          "operation://example.test/hosting/account/query-status/v1"
+        ]
+      },
+      "mutationControl": {
+        "mode": "none",
+        "twoPhase": false,
+        "planHashRequired": false,
+        "externalSingleUseGrantRequired": false,
+        "applyReceiptRequired": false
+      },
+      "readback": {
+        "queryOperationRefs": [
+          "operation://example.test/hosting/account/query-subscriptions/v1"
+        ],
+        "twinRef": "twin://example.test/hosting/subscription-inventory",
+        "blueprintRef": {
+          "blueprintId": "service-observe-repair",
+          "version": "v1",
+          "definitionUri": "lifecycle://wellmanifest.com/service-observe-repair/v1",
+          "definitionDigest": "sha256:36aba6a39af52a1d485da3ad48aa7e5fa671472be76090e9fef1ae39bb5b6870",
+          "immutable": true
+        },
+        "revisionRequired": true,
+        "independentObservationRequired": true,
+        "updatesInventory": true
+      },
+      "producedCredentialKinds": [],
+      "boundary": {
+        "knowledgeGrantsAuthority": false,
+        "credentialValuesAllowed": false,
+        "parentAccountMustBeVerified": true,
+        "accountCreation": "none"
+      }
+    },
+    {
+      "id": "hosting-filesystem-child-account",
+      "providerRefs": ["provider://example.test/hosting-control-plane"],
+      "serviceTypes": ["ssh-access", "sftp-access"],
+      "mode": "provision",
+      "accountEvidence": {
+        "accountContractRef": "schema://wellmanifest.dev/account-runtime/v1",
+        "accountQueryOperationRefs": [
+          "operation://example.test/hosting/account/query-status/v1",
+          "operation://example.test/hosting/account/query-subscriptions/v1"
+        ],
+        "requiredRelation": "account_verified",
+        "liveObservationRequired": true,
+        "freshnessRequired": true
+      },
+      "credentialEvidence": {
+        "metadataQueryOperationRef": "operation://example.test/vault/metadata/query/v1",
+        "metadataOnly": true,
+        "requiredFieldKinds": ["api-key"],
+        "targetBindingRequired": true
+      },
+      "governance": {
+        "policyRefs": ["policy://example.test/service-access/hosting/v1"],
+        "registryRefs": ["registry://example.test/connectors/hosting/v1"],
+        "strategyRefs": ["strategy://example.test/service-access/select-hosting/v1"]
+      },
+      "connector": {
+        "connectorRef": "connector://example.test/hosting/control-plane/v1",
+        "capabilities": ["filesystem-account.ensure", "subscription.inventory"],
+        "preflightOperationRefs": [
+          "operation://example.test/hosting/account/query-subscriptions/v1"
+        ],
+        "mutationOperationRef": "operation://example.test/hosting/filesystem-account/ensure/v1",
+        "producerIntentRef": "producer://example.test/hosting/filesystem-account/v1"
+      },
+      "mutationControl": {
+        "mode": "exact-plan-single-use-grant",
+        "twoPhase": true,
+        "planHashRequired": true,
+        "externalSingleUseGrantRequired": true,
+        "applyReceiptRequired": true
+      },
+      "readback": {
+        "queryOperationRefs": [
+          "operation://example.test/hosting/subscription/query-filesystem-accounts/v1",
+          "operation://example.test/vault/metadata/query/v1"
+        ],
+        "twinRef": "twin://example.test/hosting/filesystem-access",
+        "blueprintRef": {
+          "blueprintId": "service-observe-repair",
+          "version": "v1",
+          "definitionUri": "lifecycle://wellmanifest.com/service-observe-repair/v1",
+          "definitionDigest": "sha256:36aba6a39af52a1d485da3ad48aa7e5fa671472be76090e9fef1ae39bb5b6870",
+          "immutable": true
+        },
+        "revisionRequired": true,
+        "independentObservationRequired": true,
+        "updatesInventory": true
+      },
+      "producedCredentialKinds": ["private-key", "username-password"],
+      "boundary": {
+        "knowledgeGrantsAuthority": false,
+        "credentialValuesAllowed": false,
+        "parentAccountMustBeVerified": true,
+        "accountCreation": "provider-child"
+      }
+    }
+  ],
+  "gaps": [
+    {
+      "serviceType": "database",
+      "providerRef": "provider://example.test/hosting-control-plane",
+      "mode": "provision",
+      "reasonCode": "operation-not-reviewed",
+      "requiredOwnerRef": "repository://example.test/connectors",
+      "requiredCapability": "database.ensure"
+    }
+  ],
+  "boundary": {
+    "acts": false,
+    "authority": "evidence-only",
+    "knowledgeGrantsAuthority": false,
+    "credentialValuesAllowed": false,
+    "providerAccountCreationAllowed": false,
+    "gapFallback": "knowledge-gap",
+    "supervisorDecisionScope": "declared-profiles-only",
+    "supervisorMayAddOperations": false,
+    "supervisorMayGrantAuthority": false
+  }
+}

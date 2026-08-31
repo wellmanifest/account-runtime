@@ -1,0 +1,90 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-002",
+  "summary": "Standardize account-derived service access with Digital Twin readback",
+  "workstream": "integration",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-002/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "docs/SERVICE_ACCESS.md",
+    "standard/service-access.schema.json",
+    "standard/service-access.example.json",
+    "standard/conformance.py"
+  ],
+  "forbiddenPaths": ["project/ticket-*/user-*.md"],
+  "stacks": ["docker"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "59e4eec72ca98032fd2a6a16984147dc6f5c25b9",
+    "targetBranch": "main",
+    "outcome": "A provider-neutral wellmanifest.service-access/v1 standard that composes verified parent-account evidence, Vault metadata, reviewed connector operations, exact-plan authority and versioned Digital Twin readback.",
+    "nonGoals": [
+      "Read, copy or expose credential values",
+      "Create a provider tenant or primary provider account",
+      "Execute a connector operation from the standard repository",
+      "Redefine authentication, authority or Twin lifecycle ownership",
+      "Make Plesk or Subactor a runtime dependency of the standard"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Extend account-runtime with a separately versioned declarative service-access catalog rather than altering immutable account-runtime/v1 or duplicating twin-lifecycle. The catalog is evidence-only and fail-closed; runtime owners map its opaque operation references to real connectors.",
+      "components": [
+        {
+          "name": "service-access-contract",
+          "paths": [
+            "standard/service-access.schema.json",
+            "standard/service-access.example.json"
+          ]
+        },
+        {
+          "name": "conformance-and-adoption",
+          "paths": [
+            "standard/conformance.py",
+            "docs/SERVICE_ACCESS.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [
+        "Introduce the wellmanifest.service-access-catalog/v1 document family",
+        "Standardize provider-child account provisioning and Digital Twin readback without credential values"
+      ],
+      "ui": {"impact": "none", "states": [], "evidence": []},
+      "rollback": "Remove the four ticket-owned material files or their service-access additions; immutable account-runtime/v1 remains unchanged."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-05",
+        "commands": ["python3 standard/conformance.py --all"],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-06",
+        "commands": [
+          "docker compose run --rm conformance",
+          "./project/governance-check.sh --actor agent",
+          "git diff --check"
+        ],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      }
+    ]
+  }
+}
