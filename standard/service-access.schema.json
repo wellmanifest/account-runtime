@@ -1,0 +1,433 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wellmanifest.dev/schemas/service-access/v1",
+  "title": "Wellmanifest account-derived service access catalog v1",
+  "description": "Closed, provider-neutral catalog connecting verified parent-account evidence to reviewed service observation or provisioning operations and revisioned Digital Twin readback. Catalogs are evidence-only, contain no credential values and never grant execution authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema",
+    "catalogId",
+    "sourceRevision",
+    "serviceTypes",
+    "profiles",
+    "gaps",
+    "boundary"
+  ],
+  "properties": {
+    "$schema": {"const": "https://wellmanifest.dev/schemas/service-access/v1"},
+    "schema": {"const": "wellmanifest.service-access-catalog/v1"},
+    "catalogId": {"$ref": "#/$defs/identifier"},
+    "sourceRevision": {"$ref": "#/$defs/sha256Ref"},
+    "serviceTypes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": {"$ref": "#/$defs/serviceType"}
+    },
+    "profiles": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {"$ref": "#/$defs/profile"}
+    },
+    "gaps": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {"$ref": "#/$defs/gap"}
+    },
+    "boundary": {"$ref": "#/$defs/catalogBoundary"}
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[a-z][a-z0-9._-]*$"
+    },
+    "sha256Ref": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "providerRef": {
+      "type": "string",
+      "maxLength": 240,
+      "pattern": "^provider://[a-z0-9.-]+/[a-z][a-z0-9._:-]*$"
+    },
+    "schemaRef": {
+      "type": "string",
+      "maxLength": 320,
+      "pattern": "^schema://[a-z0-9.-]+/[A-Za-z0-9._:/-]+/v[1-9][0-9]*$"
+    },
+    "connectorRef": {
+      "type": "string",
+      "maxLength": 320,
+      "pattern": "^connector://[a-z0-9.-]+/[A-Za-z0-9._:/-]+/v[1-9][0-9]*$"
+    },
+    "operationRef": {
+      "type": "string",
+      "maxLength": 320,
+      "pattern": "^operation://[a-z0-9.-]+/[A-Za-z0-9._:/-]+/v[1-9][0-9]*$"
+    },
+    "producerRef": {
+      "type": "string",
+      "maxLength": 320,
+      "pattern": "^producer://[a-z0-9.-]+/[A-Za-z0-9._:/-]+/v[1-9][0-9]*$"
+    },
+    "policyRef": {
+      "type": "string",
+      "maxLength": 320,
+      "pattern": "^policy://[a-z0-9.-]+/[A-Za-z0-9._:/-]+/v[1-9][0-9]*$"
+    },
+    "registryRef": {
+      "type": "string",
+      "maxLength": 320,
+      "pattern": "^registry://[a-z0-9.-]+/[A-Za-z0-9._:/-]+/v[1-9][0-9]*$"
+    },
+    "strategyRef": {
+      "type": "string",
+      "maxLength": 320,
+      "pattern": "^strategy://[a-z0-9.-]+/[A-Za-z0-9._:/-]+/v[1-9][0-9]*$"
+    },
+    "repositoryRef": {
+      "type": "string",
+      "maxLength": 240,
+      "pattern": "^repository://[a-z0-9.-]+/[a-z][a-z0-9._/-]*$"
+    },
+    "twinRef": {
+      "type": "string",
+      "maxLength": 320,
+      "pattern": "^twin://[a-z0-9.-]+/[A-Za-z0-9._:/-]+$"
+    },
+    "blueprintRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blueprintId", "version", "definitionUri", "definitionDigest", "immutable"],
+      "properties": {
+        "blueprintId": {"const": "service-observe-repair"},
+        "version": {"const": "v1"},
+        "definitionUri": {"const": "lifecycle://wellmanifest.com/service-observe-repair/v1"},
+        "definitionDigest": {"const": "sha256:36aba6a39af52a1d485da3ad48aa7e5fa671472be76090e9fef1ae39bb5b6870"},
+        "immutable": {"const": true}
+      }
+    },
+    "identifierList": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/identifier"}
+    },
+    "operationRefList": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/operationRef"}
+    },
+    "serviceType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "protocols", "credentialKinds"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "protocols": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/identifier"}
+        },
+        "credentialKinds": {"$ref": "#/$defs/identifierList"}
+      }
+    },
+    "accountEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "accountContractRef",
+        "accountQueryOperationRefs",
+        "requiredRelation",
+        "liveObservationRequired",
+        "freshnessRequired"
+      ],
+      "properties": {
+        "accountContractRef": {"$ref": "#/$defs/schemaRef"},
+        "accountQueryOperationRefs": {"$ref": "#/$defs/operationRefList"},
+        "requiredRelation": {"const": "account_verified"},
+        "liveObservationRequired": {"const": true},
+        "freshnessRequired": {"const": true}
+      }
+    },
+    "credentialEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metadataQueryOperationRef",
+        "metadataOnly",
+        "requiredFieldKinds",
+        "targetBindingRequired"
+      ],
+      "properties": {
+        "metadataQueryOperationRef": {"$ref": "#/$defs/operationRef"},
+        "metadataOnly": {"const": true},
+        "requiredFieldKinds": {"$ref": "#/$defs/identifierList"},
+        "targetBindingRequired": {"const": true}
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyRefs", "registryRefs", "strategyRefs"],
+      "properties": {
+        "policyRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/policyRef"}
+        },
+        "registryRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/registryRef"}
+        },
+        "strategyRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/strategyRef"}
+        }
+      }
+    },
+    "connector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["connectorRef", "capabilities", "preflightOperationRefs"],
+      "properties": {
+        "connectorRef": {"$ref": "#/$defs/connectorRef"},
+        "capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/identifier"}
+        },
+        "preflightOperationRefs": {"$ref": "#/$defs/operationRefList"},
+        "mutationOperationRef": {"$ref": "#/$defs/operationRef"},
+        "producerIntentRef": {"$ref": "#/$defs/producerRef"}
+      }
+    },
+    "mutationControl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "twoPhase",
+        "planHashRequired",
+        "externalSingleUseGrantRequired",
+        "applyReceiptRequired"
+      ],
+      "properties": {
+        "mode": {"enum": ["none", "exact-plan-single-use-grant"]},
+        "twoPhase": {"type": "boolean"},
+        "planHashRequired": {"type": "boolean"},
+        "externalSingleUseGrantRequired": {"type": "boolean"},
+        "applyReceiptRequired": {"type": "boolean"}
+      }
+    },
+    "readback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "queryOperationRefs",
+        "twinRef",
+        "blueprintRef",
+        "revisionRequired",
+        "independentObservationRequired",
+        "updatesInventory"
+      ],
+      "properties": {
+        "queryOperationRefs": {"$ref": "#/$defs/operationRefList"},
+        "twinRef": {"$ref": "#/$defs/twinRef"},
+        "blueprintRef": {"$ref": "#/$defs/blueprintRef"},
+        "revisionRequired": {"const": true},
+        "independentObservationRequired": {"const": true},
+        "updatesInventory": {"const": true}
+      }
+    },
+    "profileBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "knowledgeGrantsAuthority",
+        "credentialValuesAllowed",
+        "parentAccountMustBeVerified",
+        "accountCreation"
+      ],
+      "properties": {
+        "knowledgeGrantsAuthority": {"const": false},
+        "credentialValuesAllowed": {"const": false},
+        "parentAccountMustBeVerified": {"const": true},
+        "accountCreation": {"enum": ["none", "provider-child"]}
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "providerRefs",
+        "serviceTypes",
+        "mode",
+        "accountEvidence",
+        "credentialEvidence",
+        "governance",
+        "connector",
+        "mutationControl",
+        "readback",
+        "producedCredentialKinds",
+        "boundary"
+      ],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "providerRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/providerRef"}
+        },
+        "serviceTypes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/identifier"}
+        },
+        "mode": {"enum": ["observe", "provision"]},
+        "accountEvidence": {"$ref": "#/$defs/accountEvidence"},
+        "credentialEvidence": {"$ref": "#/$defs/credentialEvidence"},
+        "governance": {"$ref": "#/$defs/governance"},
+        "connector": {"$ref": "#/$defs/connector"},
+        "mutationControl": {"$ref": "#/$defs/mutationControl"},
+        "readback": {"$ref": "#/$defs/readback"},
+        "producedCredentialKinds": {"$ref": "#/$defs/identifierList"},
+        "boundary": {"$ref": "#/$defs/profileBoundary"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"mode": {"const": "observe"}}, "required": ["mode"]},
+          "then": {
+            "properties": {
+              "connector": {"not": {"required": ["mutationOperationRef", "producerIntentRef"]}},
+              "mutationControl": {
+                "properties": {
+                  "mode": {"const": "none"},
+                  "twoPhase": {"const": false},
+                  "planHashRequired": {"const": false},
+                  "externalSingleUseGrantRequired": {"const": false},
+                  "applyReceiptRequired": {"const": false}
+                }
+              },
+              "producedCredentialKinds": {"maxItems": 0},
+              "boundary": {"properties": {"accountCreation": {"const": "none"}}}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"mode": {"const": "provision"}}, "required": ["mode"]},
+          "then": {
+            "properties": {
+              "connector": {"required": ["mutationOperationRef"]},
+              "mutationControl": {
+                "properties": {
+                  "mode": {"const": "exact-plan-single-use-grant"},
+                  "twoPhase": {"const": true},
+                  "planHashRequired": {"const": true},
+                  "externalSingleUseGrantRequired": {"const": true},
+                  "applyReceiptRequired": {"const": true}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "producedCredentialKinds": {"minItems": 1}
+            },
+            "required": ["producedCredentialKinds"]
+          },
+          "then": {"properties": {"connector": {"required": ["producerIntentRef"]}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "boundary": {
+                "properties": {"accountCreation": {"const": "provider-child"}},
+                "required": ["accountCreation"]
+              }
+            },
+            "required": ["boundary"]
+          },
+          "then": {
+            "properties": {
+              "mode": {"const": "provision"},
+              "connector": {"required": ["producerIntentRef"]},
+              "producedCredentialKinds": {"minItems": 1}
+            }
+          }
+        }
+      ]
+    },
+    "gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "serviceType",
+        "providerRef",
+        "mode",
+        "reasonCode",
+        "requiredOwnerRef",
+        "requiredCapability"
+      ],
+      "properties": {
+        "serviceType": {"$ref": "#/$defs/identifier"},
+        "providerRef": {"$ref": "#/$defs/providerRef"},
+        "mode": {"enum": ["observe", "provision"]},
+        "reasonCode": {"$ref": "#/$defs/identifier"},
+        "requiredOwnerRef": {"$ref": "#/$defs/repositoryRef"},
+        "requiredCapability": {"$ref": "#/$defs/identifier"}
+      }
+    },
+    "catalogBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "acts",
+        "authority",
+        "knowledgeGrantsAuthority",
+        "credentialValuesAllowed",
+        "providerAccountCreationAllowed",
+        "gapFallback",
+        "supervisorDecisionScope",
+        "supervisorMayAddOperations",
+        "supervisorMayGrantAuthority"
+      ],
+      "properties": {
+        "acts": {"const": false},
+        "authority": {"const": "evidence-only"},
+        "knowledgeGrantsAuthority": {"const": false},
+        "credentialValuesAllowed": {"const": false},
+        "providerAccountCreationAllowed": {"const": false},
+        "gapFallback": {"const": "knowledge-gap"},
+        "supervisorDecisionScope": {"const": "declared-profiles-only"},
+        "supervisorMayAddOperations": {"const": false},
+        "supervisorMayGrantAuthority": {"const": false}
+      }
+    }
+  }
+}
