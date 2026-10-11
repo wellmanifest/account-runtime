@@ -59,6 +59,11 @@ flowchart LR
     evidence references and outcomes, never inline prompts or model output.
 12. `executed_unverified`, `auth_unverified`, initialization and denial are
     terminal honest outcomes; none may be rewritten as success.
+13. Observation Freshness and Metric Degradation (INV-AR-004):
+    Every usage observation, token ledger entry and quota snapshot MUST carry an explicit ISO 8601 UTC timestamp (`observed_at`).
+    Observations older than the declared freshness TTL or past their provider reset window (`reset_at`) MUST degrade to state `STALE` or `EXPIRED_RESET`.
+    Autonomous dispatch, task scheduling and account rotation MUST evaluate effective remaining balance as UNKNOWN when degraded, and MUST NOT assume zero cost or unconstrained capacity.
+    Historical observation values MUST be preserved in `last_observed_remaining` for auditing and forecasting, separate from active dispatch authority.
 
 ## Graph model
 

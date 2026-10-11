@@ -1,0 +1,79 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-004",
+  "summary": "define INV-AR-004 observation freshness and budget metric degradation standard",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-004/**",
+    "project/ticket-002/README.md",
+    "project/ticket-003/README.md",
+    "TODO.md",
+    "project/TICKETS.md",
+    "docs/**",
+    "standard/**"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "delivery": {
+    "acceptedBaseSha": "8a5672c1fe898025f68242e7330fa014da7a1ed1",
+    "targetBranch": "main",
+    "outcome": "Define normative observation freshness invariant INV-AR-004 in ARCHITECTURE.md, publish specification in OBSERVATION_FRESHNESS.md, and wire deterministic freshness validation into conformance.py.",
+    "nonGoals": [
+      "Do not modify frozen service-access catalog v1 schema digests."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Codify INV-AR-004 observation freshness states (fresh, stale, expired_reset, future_invalid, unknown), define automatic metric degradation to UNKNOWN for non-fresh states, and implement testable validation in standard/conformance.py.",
+      "components": [
+        {
+          "name": "account-runtime-freshness",
+          "paths": [
+            "docs/ARCHITECTURE.md",
+            "docs/OBSERVATION_FRESHNESS.md",
+            "standard/conformance.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "standard/conformance.py: add validate_observation_freshness and INV-AR-004 adversarial tests"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert commit via git."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python3 standard/conformance.py --all",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Conformance tests and governance check pass."
+      }
+    ]
+  },
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null
+}
