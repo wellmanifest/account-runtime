@@ -8,7 +8,8 @@ import copy
 import hashlib
 import json
 import re
-from datetime import datetime
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -693,6 +694,36 @@ def run_all() -> dict[str, Any]:
         "requiredCapability": "subscription.inventory",
     }))
     reject_service_case("uncovered-service-type", "SVCACCESS-GAP-001", lambda d: d.update(gaps=[]))
+
+    # Verify INV-AR-004: Observation Freshness & Metric Degradation
+    now_ref = 1760000000.0  # deterministic reference epoch
+    # 1. Fresh observation
+    t_fresh = datetime.fromtimestamp(now_ref - 3600, tz=timezone.utc).isoformat()
+    state, usable = validate_observation_freshness(t_fresh, now_epoch=now_ref, ttl_seconds=86400.0)
+    assert state == "fresh" and usable is True, f"fresh observation failed: {state}"
+
+    # 2. Stale observation (> TTL)
+    t_stale = datetime.fromtimestamp(now_ref - 90000, tz=timezone.utc).isoformat()
+    state, usable = validate_observation_freshness(t_stale, now_epoch=now_ref, ttl_seconds=86400.0)
+    assert state == "stale" and usable is False, f"stale observation failed: {state}"
+
+    # 3. Expired reset window (now >= reset_at)
+    t_obs = datetime.fromtimestamp(now_ref - 1800, tz=timezone.utc).isoformat()
+    t_reset = datetime.fromtimestamp(now_ref - 60, tz=timezone.utc).isoformat()
+    state, usable = validate_observation_freshness(t_obs, reset_at_str=t_reset, now_epoch=now_ref)
+    assert state == "expired_reset" and usable is False, f"expired reset failed: {state}"
+
+    # 4. Future invalid observation (> skew tolerance)
+    t_future = datetime.fromtimestamp(now_ref + 3600, tz=timezone.utc).isoformat()
+    state, usable = validate_observation_freshness(t_future, now_epoch=now_ref, skew_tolerance_seconds=60.0)
+    assert state == "future_invalid" and usable is False, f"future observation failed: {state}"
+
+    # 5. Missing / malformed observation
+    state, usable = validate_observation_freshness("invalid-iso-timestamp", now_epoch=now_ref)
+    assert state == "unknown" and usable is False, f"malformed observation failed: {state}"
+    state, usable = validate_observation_freshness(None, now_epoch=now_ref)
+    assert state == "unknown" and usable is False, f"none observation failed: {state}"
+
     return {
         "schema": "wellmanifest.account-runtime-conformance/v1",
         "ok": True,
@@ -700,6 +731,11 @@ def run_all() -> dict[str, Any]:
         "grammarDigest": "sha256:" + GRAMMAR_DIGEST,
         "positiveVariants": 5,
         "adversarialRejected": rejected,
+        "observationFreshness": {
+            "invariant": "INV-AR-004",
+            "statesVerified": ["fresh", "stale", "expired_reset", "future_invalid", "unknown"],
+            "ok": True,
+        },
         "serviceAccess": {
             "schema": "wellmanifest.service-access-conformance/v1",
             "schemaDigest": "sha256:" + SERVICE_ACCESS_SCHEMA_DIGEST,
@@ -709,6 +745,50 @@ def run_all() -> dict[str, Any]:
             "adversarialRejected": service_rejected,
         },
     }
+
+
+def validate_observation_freshness(
+    observed_at_str: str | None,
+    reset_at_str: str | None = None,
+    now_epoch: float | None = None,
+    ttl_seconds: float = 86400.0,
+    skew_tolerance_seconds: float = 60.0,
+) -> tuple[str, bool]:
+    """Validate observation timestamp freshness per INV-AR-004.
+
+    Returns (freshness_state, is_usable_for_scheduling).
+    States: 'fresh', 'stale', 'expired_reset', 'future_invalid', 'unknown'.
+    """
+    if not observed_at_str or not isinstance(observed_at_str, str):
+        return ("unknown", False)
+
+    try:
+        dt_str = observed_at_str.replace("Z", "+00:00")
+        dt_obs = datetime.fromisoformat(dt_str)
+        obs_epoch = dt_obs.timestamp()
+    except (ValueError, TypeError):
+        return ("unknown", False)
+
+    now = now_epoch if now_epoch is not None else time.time()
+
+    if obs_epoch > now + skew_tolerance_seconds:
+        return ("future_invalid", False)
+
+    if reset_at_str and isinstance(reset_at_str, str):
+        try:
+            dt_reset_str = reset_at_str.replace("Z", "+00:00")
+            dt_reset = datetime.fromisoformat(dt_reset_str)
+            reset_epoch = dt_reset.timestamp()
+            if now >= reset_epoch:
+                return ("expired_reset", False)
+        except (ValueError, TypeError):
+            return ("unknown", False)
+
+    age = now - obs_epoch
+    if age > ttl_seconds:
+        return ("stale", False)
+
+    return ("fresh", True)
 
 
 def main() -> int:
