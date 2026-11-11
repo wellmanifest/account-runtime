@@ -23,6 +23,7 @@ ContractError, canonical, digest = _pr.ContractError, _pr.canonical, _pr.digest
 exact, bounded_datetime = _pr.exact, _pr.bounded_datetime
 bounded_list, unique_list = _pr.bounded_list, _pr.unique_list
 reject_sensitive_keys, str_choice = _pr.reject_sensitive_keys, _pr.str_choice
+RECEIPT_OUTCOMES = _pr.RECEIPT_OUTCOMES
 SCHEMA_URI = _fx.SCHEMA_URI
 graph_example, runtime_example = _fx.graph_example, _fx.runtime_example
 request_example, receipt_example = _fx.request_example, _fx.receipt_example
@@ -66,17 +67,6 @@ READINESS_STATES = frozenset(
     {"initialization_required", "session_unverified", "ready", "degraded", "revoked"}
 )
 CONTROL_OPS = frozenset({"inspect", "plan", "invoke", "cancel", "focus", "close"})
-RECEIPT_OUTCOMES = frozenset(
-    {
-        "denied",
-        "initialization_required",
-        "auth_unverified",
-        "executed",
-        "executed_unverified",
-        "failed",
-        "cancelled",
-    }
-)
 
 
 def _match_bounded_uri(value: Any, pattern: re.Pattern[str], max_len: int, label: str) -> str:
@@ -91,10 +81,24 @@ class Contracts:
         self.grammar = _pr.read_regular_utf8(GRAMMAR_PATH)
         defs = self.schema.get("$defs", {})
         names = (
-            "identifier", "sha256", "sha256Ref", "identityRef", "serviceRef", "providerRef",
-            "toolRef", "runtimeRef", "projectRef", "containerRef", "mcpEndpointRef",
-            "evidenceRef", "artifactRef", "schemaRef", "vaultRef", "intentRef",
-            "grantRef", "origin",
+            "identifier",
+            "sha256",
+            "sha256Ref",
+            "identityRef",
+            "serviceRef",
+            "providerRef",
+            "toolRef",
+            "runtimeRef",
+            "projectRef",
+            "containerRef",
+            "mcpEndpointRef",
+            "evidenceRef",
+            "artifactRef",
+            "schemaRef",
+            "vaultRef",
+            "intentRef",
+            "grantRef",
+            "origin",
         )
         self.patterns = {
             name: _pr.compile_anchored_pattern(defs[name]["pattern"]) for name in names
@@ -136,8 +140,11 @@ class Contracts:
         if variants != expected_variants:
             raise ContractError("document variants incomplete")
         fragments = (
-            "root ::= request", "raw shell", "external-exact-grant",
-            "mcp-ref ::=", "artifact-ref ::=",
+            "root ::= request",
+            "raw shell",
+            "external-exact-grant",
+            "mcp-ref ::=",
+            "artifact-ref ::=",
         )
         if any(fragment not in self.grammar for fragment in fragments):
             raise ContractError("grammar is incomplete")
@@ -147,8 +154,14 @@ class Contracts:
 def validate_graph(c: Contracts, value: Any) -> None:
     _pr.reject_secret_material(value)
     keys = {
-        "$schema", "schema", "snapshotId", "observedAt",
-        "identities", "services", "links", "evidence",
+        "$schema",
+        "schema",
+        "snapshotId",
+        "observedAt",
+        "identities",
+        "services",
+        "links",
+        "evidence",
     }
     value = exact(value, keys)
     if value["$schema"] != SCHEMA_URI or value["schema"] != "wellmanifest.account-graph/v1":
@@ -186,7 +199,12 @@ def validate_graph(c: Contracts, value: Any) -> None:
             raise ContractError("duplicate service")
         services.add(ref)
         sname = item["name"]
-        if not isinstance(sname, str) or not sname.strip() or len(sname) > 160:
+        if (
+            not isinstance(sname, str)
+            or not sname.strip()
+            or len(sname) > 160
+            or any(ord(ch) < 32 or ord(ch) == 127 for ch in sname)
+        ):
             raise ContractError("invalid service name")
         str_choice(item["classification"], SERVICE_CLASSES, "invalid service classification")
         for origin in unique_list(item["origins"], "GRAPH-001", minimum=1, maximum=32):
@@ -196,8 +214,13 @@ def validate_graph(c: Contracts, value: Any) -> None:
 
     for item in bounded_list(value["evidence"], "GRAPH-001", minimum=1, maximum=1000000):
         ev_keys = {
-            "ref", "kind", "sourceRef", "digest",
-            "collectedAt", "secretsDiscarded", "valuesPersisted",
+            "ref",
+            "kind",
+            "sourceRef",
+            "digest",
+            "collectedAt",
+            "secretsDiscarded",
+            "valuesPersisted",
         }
         item = exact(item, ev_keys)
         ref = c.ref("evidenceRef", item["ref"])
@@ -213,8 +236,12 @@ def validate_graph(c: Contracts, value: Any) -> None:
 
     for item in bounded_list(value["links"], "GRAPH-001", maximum=1000000):
         link_keys = {
-            "identityRef", "serviceRef", "relation",
-            "confidence", "evidenceRefs", "observedAt",
+            "identityRef",
+            "serviceRef",
+            "relation",
+            "confidence",
+            "evidenceRefs",
+            "observedAt",
         }
         item = exact(item, link_keys, {"verifiedAt"})
         if (
@@ -239,9 +266,20 @@ def validate_graph(c: Contracts, value: Any) -> None:
 def validate_runtime(c: Contracts, value: Any) -> None:
     _pr.reject_secret_material(value)
     keys = {
-        "$schema", "schema", "runtimeRef", "graphDigest", "identityRef", "providerRef",
-        "toolRef", "projectRef", "containerRef", "mcpEndpointRef", "persistence",
-        "state", "control", "secretResolution",
+        "$schema",
+        "schema",
+        "runtimeRef",
+        "graphDigest",
+        "identityRef",
+        "providerRef",
+        "toolRef",
+        "projectRef",
+        "containerRef",
+        "mcpEndpointRef",
+        "persistence",
+        "state",
+        "control",
+        "secretResolution",
     }
     value = exact(value, keys)
     if (
@@ -250,14 +288,24 @@ def validate_runtime(c: Contracts, value: Any) -> None:
     ):
         raise ContractError("unsupported runtime schema")
     for name in (
-        "runtimeRef", "identityRef", "providerRef", "toolRef",
-        "projectRef", "containerRef", "mcpEndpointRef",
+        "runtimeRef",
+        "identityRef",
+        "providerRef",
+        "toolRef",
+        "projectRef",
+        "containerRef",
+        "mcpEndpointRef",
     ):
         c.ref(name, value[name])
     c.ref("sha256Ref", value["graphDigest"])
     p_keys = {
-        "profileVolumeRef", "projectMountRef", "restartPolicy", "sessionRecovery",
-        "profileIsolation", "hostExposure", "clipboard",
+        "profileVolumeRef",
+        "projectMountRef",
+        "restartPolicy",
+        "sessionRecovery",
+        "profileIsolation",
+        "hostExposure",
+        "clipboard",
     }
     p = exact(value["persistence"], p_keys)
     _match_bounded_uri(p["profileVolumeRef"], VOLUME_REF_RE, 240, "profileVolumeRef")
@@ -289,8 +337,12 @@ def validate_runtime(c: Contracts, value: Any) -> None:
     if (state["readiness"] == "ready") != ready:
         raise ContractError("readiness contradicts probes")
     ctrl_keys = {
-        "operations", "rawShell", "arbitraryArgv",
-        "mcpSchemaRequired", "gbnfRequired", "humanVisible",
+        "operations",
+        "rawShell",
+        "arbitraryArgv",
+        "mcpSchemaRequired",
+        "gbnfRequired",
+        "humanVisible",
     }
     control = exact(value["control"], ctrl_keys, {"kvmConnectorRef"})
     for op in unique_list(control["operations"], "RUNTIME-001", minimum=1, maximum=8):
@@ -313,91 +365,11 @@ def validate_runtime(c: Contracts, value: Any) -> None:
 
 
 def validate_request(c: Contracts, value: Any) -> None:
-    reject_sensitive_keys(value)
-    _pr.reject_secret_material(value)
-    keys = {
-        "$schema", "schema", "requestId", "operation",
-        "endpointRef", "target", "task", "limits", "authority",
-    }
-    value = exact(value, keys)
-    if (
-        value["$schema"] != SCHEMA_URI
-        or value["schema"] != "wellmanifest.account-runtime-request/v1"
-    ):
-        raise ContractError("unsupported request schema")
-    c.ref("identifier", value["requestId"])
-    endpoint = c.ref("mcpEndpointRef", value["endpointRef"])
-    str_choice(value["operation"], {"inspect", "plan", "invoke"}, "unsupported operation")
-    target = exact(
-        value["target"], {"runtimeRef", "identityRef", "providerRef", "toolRef", "projectRef"}
-    )
-    for name in target:
-        c.ref(name, target[name])
-    acct_slug = target["identityRef"].rsplit("/", 1)[-1]
-    prov_slug = target["providerRef"].rsplit("/", 1)[-1]
-    tool_slug = target["toolRef"].rsplit("/", 1)[-1]
-    expected_path = f"accounts/{acct_slug}/providers/{prov_slug}/tools/{tool_slug}"
-    if endpoint.partition("://")[2].partition("/")[2] != expected_path:
-        raise ContractError("endpoint target mismatch")
-    task = exact(value["task"], {"kind", "promptRef", "inputRefs", "outputContractRef"})
-    if task["kind"] != "llm-query":
-        raise ContractError("unsupported task")
-    c.ref("artifactRef", task["promptRef"])
-    c.ref("schemaRef", task["outputContractRef"])
-    for ref in unique_list(task["inputRefs"], "REQ-001", maximum=32):
-        c.ref("artifactRef", ref)
-    limits = exact(value["limits"], {"timeoutSeconds", "maxArtifacts", "maxOutputBytes"})
-    _pr.bounded_int(limits["timeoutSeconds"], 1, 3600, "timeoutSeconds")
-    _pr.bounded_int(limits["maxArtifacts"], 0, 64, "maxArtifacts")
-    _pr.bounded_int(limits["maxOutputBytes"], 1, 16777216, "maxOutputBytes")
-    auth = exact(value["authority"], {"mode", "intentRef", "grantRef", "planHash", "singleUse"})
-    if auth["mode"] != "external-exact-grant" or auth["singleUse"] is not True:
-        raise ContractError("invalid authority binding")
-    c.ref("intentRef", auth["intentRef"])
-    c.ref("grantRef", auth["grantRef"])
-    c.ref("sha256", auth["planHash"])
+    _pr.validate_request(c, value, SCHEMA_URI)
 
 
 def validate_receipt(c: Contracts, value: Any) -> None:
-    reject_sensitive_keys(value)
-    _pr.reject_secret_material(value)
-    keys = {
-        "$schema", "schema", "requestId", "runtimeRef", "planHash", "inputHash", "outcome",
-        "startedAt", "completedAt", "artifactRefs", "evidenceRefs", "secretFree",
-        "handleRedacted", "promptInline", "outputInline",
-    }
-    value = exact(value, keys, {"outputHash"})
-    if (
-        value["$schema"] != SCHEMA_URI
-        or value["schema"] != "wellmanifest.account-runtime-receipt/v1"
-    ):
-        raise ContractError("unsupported receipt schema")
-    c.ref("identifier", value["requestId"])
-    c.ref("runtimeRef", value["runtimeRef"])
-    for name in ("planHash", "inputHash"):
-        c.ref("sha256", value[name])
-    if "outputHash" in value:
-        c.ref("sha256", value["outputHash"])
-    outcome = str_choice(value["outcome"], RECEIPT_OUTCOMES, "unsupported receipt outcome")
-    start = bounded_datetime(value["startedAt"])
-    end = bounded_datetime(value["completedAt"])
-    if end < start:
-        raise ContractError("receipt time reversed")
-    artifact_refs = unique_list(value["artifactRefs"], "RCPT-001", maximum=64)
-    for ref in artifact_refs:
-        c.ref("artifactRef", ref)
-    evidence_refs = unique_list(value["evidenceRefs"], "RCPT-001", minimum=1, maximum=64)
-    for ref in evidence_refs:
-        c.ref("evidenceRef", ref)
-    if outcome == "executed" and (not artifact_refs or "outputHash" not in value):
-        raise ContractError("executed receipt lacks artifact proof")
-    if (
-        value["secretFree"] is not True
-        or value["handleRedacted"] is not True
-        or value["promptInline"] is not False
-        or value["outputInline"] is not False
-    ):
-        raise ContractError("receipt contains unsafe inline data")
+    _pr.validate_receipt(c, value, SCHEMA_URI)
 
 
 def validate_document(value: Any) -> None:
@@ -467,7 +439,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.all:
-            print(json.dumps(run_all(), indent=2, sort_keys=True))
+            print(json.dumps(run_all(), indent=2, sort_keys=True, allow_nan=False))
         elif args.file:
             validate_document(_pr.load_strict_json(args.file))
             print(f"PASS: {args.file}")

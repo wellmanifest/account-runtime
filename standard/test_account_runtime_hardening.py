@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from standard import account_fixtures as fx
+from standard import account_io as aio
 from standard import account_primitives as pr
 from standard import conformance as conf
 from standard import service_access_conformance as sa
@@ -21,6 +22,11 @@ EXAMPLE_PATH = ROOT / "standard" / "service-access.example.json"
 
 
 class AccountRuntimeHardeningTests(unittest.TestCase):
+    def test_all_standard_modules_stay_strictly_under_500_lines(self) -> None:
+        for py_file in sorted((ROOT / "standard").glob("*.py")):
+            line_count = len(py_file.read_text(encoding="utf-8").splitlines())
+            self.assertLess(line_count, 500, f"{py_file.name} exceeded 500 lines ({line_count})")
+
     def test_read_regular_utf8_rejects_symlinks_directories_and_oversized_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_dir = Path(tmp)
@@ -91,9 +97,7 @@ class AccountRuntimeHardeningTests(unittest.TestCase):
             ("unknown", False),
         )
         self.assertEqual(
-            pr.validate_observation_freshness(
-                ts, now_epoch=1760000000.0, ttl_seconds=10**400
-            ),
+            pr.validate_observation_freshness(ts, now_epoch=1760000000.0, ttl_seconds=10**400),
             ("unknown", False),
         )
 
@@ -104,6 +108,12 @@ class AccountRuntimeHardeningTests(unittest.TestCase):
         graph["services"][0]["classification"] = "unclassified-custom"
         with self.assertRaises(pr.ContractError):
             conf.validate_graph(c, graph)
+
+        for bad_sname in ("svc\x00name", "svc\nname", "svc\x1bname", "svc\x7fname"):
+            bad_name_graph = fx.graph_example()
+            bad_name_graph["services"][0]["name"] = bad_sname
+            with self.subTest(kind=repr(bad_sname)), self.assertRaises(pr.ContractError):
+                conf.validate_graph(c, bad_name_graph)
 
         bad_store = fx.graph_example()
         bad_store["identities"][0]["storeRefs"] = ["not-a-store-uri"]
@@ -185,13 +195,23 @@ class AccountRuntimeHardeningTests(unittest.TestCase):
 
             link_dir = root / "link_dir"
             link_dir.symlink_to(real_dir)
+            sub_dir = root / "sub_dir"
+            sub_dir.mkdir()
             prev_cwd = Path.cwd()
             try:
                 os.chdir(root)
                 with self.assertRaises(pr.ContractError):
                     pr.read_regular_utf8(Path("link_dir/doc.json"))
+                with self.assertRaises(pr.ContractError):
+                    pr.read_regular_utf8(Path("link_dir/../real_dir/doc.json"))
+                os.chdir(sub_dir)
+                with self.assertRaises(pr.ContractError):
+                    pr.read_regular_utf8(Path("../link_dir/doc.json"))
             finally:
                 os.chdir(prev_cwd)
+
+            with self.assertRaises(pr.ContractError):
+                pr.read_regular_utf8(Path(f"{link_dir}/../real_dir/doc.json"))
 
             real_fstat = os.fstat
 
@@ -213,12 +233,12 @@ class AccountRuntimeHardeningTests(unittest.TestCase):
                 )
 
             with (
-                patch("standard.account_primitives.os.fstat", side_effect=swapped_fstat),
+                patch.object(aio.os, "fstat", side_effect=swapped_fstat),
                 self.assertRaises(pr.ContractError),
             ):
                 pr.read_regular_utf8(target)
 
-        for bad_json in (f'{{"n": {"9" * 400}}}', '"\\ud800"'):
+        for bad_json in (f'{{"n": {"9" * 310}}}', f'{{"n": {"9" * 400}}}', '"\\ud800"'):
             with self.subTest(raw=bad_json), self.assertRaises(pr.ContractError):
                 pr.strict_loads(bad_json)
 
