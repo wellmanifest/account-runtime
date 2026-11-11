@@ -1,9 +1,9 @@
 # Ticket 003: Adopt wellmanifest/new-project 0.20.32
 
 - **ID**: ticket-003
-- **Owner**: unresolved:human
+- **Owner**: tom
 - **Status**: DONE
-- **Workflow state**: EDIT
+- **Workflow state**: PUBLICATION
 - **Created**: 2026-09-16
 
 ## Goal and scope

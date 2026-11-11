@@ -1,0 +1,100 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-005",
+  "summary": "Modularize under 500 lines and harden account-runtime and service-access conformance",
+  "workstream": "integration",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-003/README.md",
+    "project/ticket-004/README.md",
+    "project/ticket-005/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "pyproject.toml",
+    "standard/account_fixtures.py",
+    "standard/account_primitives.py",
+    "standard/conformance.py",
+    "standard/service_access_conformance.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "f6a51bb32816545470a0fe0511e3cf5523eb1585",
+    "targetBranch": "main",
+    "outcome": "Modularize wellmanifest/account-runtime conformance validators under 500 lines, fix list-schema closure, bool-for-int limits, duplicate JSON keys, naive timezone freshness, and inline secret checks, and add pyproject.toml.",
+    "nonGoals": [
+      "Do not modify frozen account-runtime or service-access JSON schema digests",
+      "No runtime dependency additions"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 35,
+    "budgets": {
+      "maxImplementationFiles": 9,
+      "maxAffectedComponents": 3,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 1
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Extract shared strict JSON, type, RFC3339, schema-closure, secret-scanning, and observation-freshness helpers into standard/account_primitives.py, fixtures into standard/account_fixtures.py, and service-access validator into standard/service_access_conformance.py.",
+      "components": [
+        {
+          "name": "account-runtime-conformance",
+          "paths": [
+            "pyproject.toml",
+            "standard/account_fixtures.py",
+            "standard/account_primitives.py",
+            "standard/conformance.py",
+            "standard/service_access_conformance.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "standard/conformance.py: add --file standalone document validation flag"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the ticket branch commit or close the pull request before merge."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "ruff check standard"
+        ],
+        "evidence": "project/ticket-005/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python3 standard/conformance.py --all",
+          "python3 standard/conformance.py --file standard/service-access.example.json"
+        ],
+        "evidence": "project/ticket-005/README.md"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh --base origin/main",
+          "wellman check"
+        ],
+        "evidence": "project/ticket-005/README.md"
+      }
+    ]
+  }
+}
