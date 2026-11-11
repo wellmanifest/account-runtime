@@ -103,6 +103,13 @@ def _reject_constant(_token: str) -> Any:
     raise ContractError("non-finite JSON constant is forbidden")
 
 
+def _parse_finite_float(token: str) -> float:
+    parsed = float(token)
+    if not math.isfinite(parsed):
+        raise ContractError("non-finite JSON number is forbidden")
+    return parsed
+
+
 def strict_loads(raw: str) -> Any:
     if (
         not isinstance(raw, str)
@@ -111,7 +118,10 @@ def strict_loads(raw: str) -> Any:
         raise ContractError("JSON input exceeds maximum size")
     try:
         parsed = json.loads(
-            raw, object_pairs_hook=_unique_pairs, parse_constant=_reject_constant
+            raw,
+            object_pairs_hook=_unique_pairs,
+            parse_constant=_reject_constant,
+            parse_float=_parse_finite_float,
         )
     except ContractError:
         raise
@@ -131,7 +141,7 @@ def canonical(value: Any) -> str:
         return json.dumps(
             value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
         )
-    except (TypeError, ValueError, RecursionError) as error:
+    except (TypeError, ValueError, RecursionError, OverflowError) as error:
         raise ContractError("value is not canonicalizable JSON") from error
 
 
@@ -157,6 +167,8 @@ def str_choice(value: Any, allowed: set[str] | frozenset[str], message: str) -> 
 
 
 def validate_safe_uri_segments(uri: str, message: str = "unsafe URI path segment") -> str:
+    if any(ch.isspace() or ord(ch) < 32 for ch in uri):
+        raise ContractError(message)
     if "://" in uri:
         rest = uri.partition("://")[2]
         if "//" in rest or any(seg in {".", ".."} for seg in rest.split("/")[1:]):
@@ -212,21 +224,29 @@ def unique_list(
 
 
 def assert_closed_schema(node: Any, error_message: str = "object schema is not closed") -> None:
-    stack: list[tuple[Any, int]] = [(node, 0)]
+    map_keys = {"properties", "$defs", "dependentSchemas"}
+    predicate_keys = {"if", "not", "contains"}
+    stack: list[tuple[Any, int, bool]] = [(node, 0, False)]
     while stack:
-        current, depth = stack.pop()
+        current, depth, is_map = stack.pop()
         if depth > MAX_JSON_DEPTH:
             raise ContractError("schema nesting exceeds maximum depth")
         if isinstance(current, dict):
-            if current.get("type") == "object" and current.get("additionalProperties") is not False:
+            if (
+                not is_map
+                and current.get("type") == "object"
+                and current.get("additionalProperties") is not False
+            ):
                 raise ContractError(error_message)
             for key, child in current.items():
                 if not isinstance(key, str):
                     raise ContractError("schema object key must be a string")
-                stack.append((child, depth + 1))
+                if not is_map and key in predicate_keys:
+                    continue
+                stack.append((child, depth + 1, not is_map and key in map_keys))
         elif isinstance(current, list):
             for child in current:
-                stack.append((child, depth + 1))
+                stack.append((child, depth + 1, False))
 
 
 def reject_sensitive_keys(value: Any) -> None:
@@ -270,7 +290,10 @@ def reject_secret_material(
 def _finite_number(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    fval = float(value)
+    try:
+        fval = float(value)
+    except OverflowError:
+        return None
     return fval if math.isfinite(fval) else None
 
 

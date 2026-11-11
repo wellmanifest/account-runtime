@@ -34,7 +34,13 @@ class AccountRuntimeHardeningTests(unittest.TestCase):
                 pr.read_regular_utf8(big, max_bytes=64)
 
     def test_strict_loads_and_canonical_reject_non_finite_and_deep_json(self) -> None:
-        for raw in ('{"x": NaN}', '{"x": Infinity}', '{"x": -Infinity}'):
+        for raw in (
+            '{"x": NaN}',
+            '{"x": Infinity}',
+            '{"x": -Infinity}',
+            '{"x": 1e999}',
+            '{"x": -1e999}',
+        ):
             with self.subTest(raw=raw):
                 with self.assertRaises(pr.ContractError):
                     pr.strict_loads(raw)
@@ -76,6 +82,16 @@ class AccountRuntimeHardeningTests(unittest.TestCase):
         )
         self.assertEqual(
             pr.validate_observation_freshness(ts, now_epoch=1760000000.0, ttl_seconds=-1.0),
+            ("unknown", False),
+        )
+        self.assertEqual(
+            pr.validate_observation_freshness(ts, now_epoch=10**400),
+            ("unknown", False),
+        )
+        self.assertEqual(
+            pr.validate_observation_freshness(
+                ts, now_epoch=1760000000.0, ttl_seconds=10**400
+            ),
             ("unknown", False),
         )
 
@@ -130,6 +146,24 @@ class AccountRuntimeHardeningTests(unittest.TestCase):
         bad_cat["profiles"][0]["mode"] = ["unhashable"]
         with self.assertRaises(pr.ContractError):
             sa.validate_service_access(svc, bad_cat)
+
+        over_providers = copy.deepcopy(svc.example)
+        over_providers["profiles"][0]["providerRefs"] = [
+            f"provider://example.test/p-{idx}" for idx in range(17)
+        ]
+        with self.assertRaises(pr.ContractError):
+            sa.validate_service_access(svc, over_providers)
+
+        with self.assertRaises(pr.ContractError):
+            pr.validate_safe_uri_segments("provider://example.test/a b")
+
+        pr.assert_closed_schema(
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "if": {"properties": {"items": {"contains": {"type": "object"}}}},
+            }
+        )
 
 
 if __name__ == "__main__":
