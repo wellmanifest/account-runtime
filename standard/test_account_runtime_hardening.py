@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import copy
 import math
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from standard import account_fixtures as fx
 from standard import account_primitives as pr
@@ -164,6 +166,102 @@ class AccountRuntimeHardeningTests(unittest.TestCase):
                 "if": {"properties": {"items": {"contains": {"type": "object"}}}},
             }
         )
+        with self.assertRaises(pr.ContractError):
+            pr.assert_closed_schema(
+                {"$defs": {"openDef": {"properties": {"mode": {"type": "string"}}}}}
+            )
+
+    def test_inode_swap_ancestor_symlinks_huge_int_json_and_uri_anchors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            real_dir = root / "real_dir"
+            real_dir.mkdir()
+            target = real_dir / "doc.json"
+            target.write_text('{"ok": true}', encoding="utf-8")
+
+            for bad_max in (True, False, 0, -3):
+                with self.subTest(max_bytes=bad_max), self.assertRaises(pr.ContractError):
+                    pr.read_regular_utf8(target, max_bytes=bad_max)  # type: ignore[arg-type]
+
+            link_dir = root / "link_dir"
+            link_dir.symlink_to(real_dir)
+            prev_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with self.assertRaises(pr.ContractError):
+                    pr.read_regular_utf8(Path("link_dir/doc.json"))
+            finally:
+                os.chdir(prev_cwd)
+
+            real_fstat = os.fstat
+
+            def swapped_fstat(fd: int) -> os.stat_result:
+                st = real_fstat(fd)
+                return os.stat_result(
+                    (
+                        st.st_mode,
+                        st.st_ino + 777777,
+                        st.st_dev,
+                        st.st_nlink,
+                        st.st_uid,
+                        st.st_gid,
+                        st.st_size,
+                        st.st_atime,
+                        st.st_mtime,
+                        st.st_ctime,
+                    )
+                )
+
+            with (
+                patch("standard.account_primitives.os.fstat", side_effect=swapped_fstat),
+                self.assertRaises(pr.ContractError),
+            ):
+                pr.read_regular_utf8(target)
+
+        for bad_json in (f'{{"n": {"9" * 400}}}', '"\\ud800"'):
+            with self.subTest(raw=bad_json), self.assertRaises(pr.ContractError):
+                pr.strict_loads(bad_json)
+
+        c = conf.Contracts()
+        for bad_store in (
+            "store://../secret",
+            "store://vault/foo:..:bar",
+            "store://vault/foo::bar",
+            "store://vault/trailing/",
+            r"store://vault/bad\slash",
+            "store://vault/bad?query=1",
+            "store://vault/bad#frag",
+        ):
+            g = fx.graph_example()
+            g["identities"][0]["storeRefs"] = [bad_store]
+            with self.subTest(store=bad_store), self.assertRaises(pr.ContractError):
+                conf.validate_graph(c, g)
+
+        for bad_origin in ("https://..", "https://example.test:0", "https://example.test:99999"):
+            g = fx.graph_example()
+            g["services"][0]["origins"] = [bad_origin]
+            with self.subTest(origin=bad_origin), self.assertRaises(pr.ContractError):
+                conf.validate_graph(c, g)
+
+        for bad_email in ("user..name@example.com", "user@..example.com", "user@example.com\n"):
+            g = fx.graph_example()
+            g["identities"][0]["handle"]["value"] = bad_email
+            with self.subTest(email=bad_email), self.assertRaises(pr.ContractError):
+                conf.validate_graph(c, g)
+
+        svc = sa.ServiceAccessContracts()
+        samples = [
+            (pr.RFC3339_DT, "2026-08-12T12:00:00Z"),
+            (pr.EMAIL_RE, "alice@example.com"),
+            (conf.STORE_REF_RE, "store://vault.local/item-1"),
+            (c.patterns["sha256"], "a" * 64),
+            (c.patterns["origin"], "https://example.test:8443"),
+            (svc.patterns["providerRef"], "provider://example.test/hosting"),
+        ]
+        for pattern, valid_text in samples:
+            with self.subTest(pattern=pattern.pattern):
+                self.assertIsNotNone(pattern.match(valid_text))
+                self.assertIsNone(pattern.match(valid_text + "\n"))
 
 
 if __name__ == "__main__":
