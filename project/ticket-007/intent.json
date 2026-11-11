@@ -1,0 +1,99 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-007",
+  "summary": "Harden account-runtime JSON/file bounds, observation freshness, and schema parity",
+  "workstream": "integration",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-006/README.md",
+    "project/ticket-007/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "pyproject.toml",
+    "standard/account_primitives.py",
+    "standard/conformance.py",
+    "standard/service_access_conformance.py",
+    "standard/test_account_runtime_hardening.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "9ff6d0b8fde0ac2b3f32e8690ba976b6d7a48dc0",
+    "targetBranch": "main",
+    "outcome": "Enforce O_NOFOLLOW regular-file and 4 MiB JSON/grammar bounds, iterative MAX_JSON_DEPTH=64 and finite-JSON enforcement, fail-closed NaN/Inf/bool observation freshness checks, full JSON Schema enum/URI/prefix-collision parity across account-runtime and service-access validators (<500 lines per module), and close merged ticket-006.",
+    "nonGoals": [
+      "Do not modify frozen schemas or grammars",
+      "No runtime dependency additions"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 35,
+    "budgets": {
+      "maxImplementationFiles": 9,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Centralize O_NOFOLLOW file loading, iterative JSON depth/key/constant bounds, URI traversal guards, and finite numeric freshness checks in standard/account_primitives.py and enforce schema parity across standard/conformance.py and standard/service_access_conformance.py.",
+      "components": [
+        {
+          "name": "account-runtime-validators",
+          "paths": [
+            "pyproject.toml",
+            "standard/account_primitives.py",
+            "standard/conformance.py",
+            "standard/service_access_conformance.py",
+            "standard/test_account_runtime_hardening.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "standard/account_primitives.py:read_regular_utf8"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the ticket branch commit or close the pull request before merge."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q",
+          "python3 standard/conformance.py --all"
+        ],
+        "evidence": "project/ticket-007/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "ruff check standard tests"
+        ],
+        "evidence": "project/ticket-007/README.md"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh --base origin/main",
+          "wellman check"
+        ],
+        "evidence": "project/ticket-007/README.md"
+      }
+    ]
+  }
+}

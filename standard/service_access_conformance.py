@@ -18,6 +18,7 @@ ContractError = _pr.ContractError
 exact = _pr.exact
 bounded_list = _pr.bounded_list
 unique_list = _pr.unique_list
+str_choice = _pr.str_choice
 
 ROOT = Path(__file__).resolve().parent
 SERVICE_ACCESS_SCHEMA_PATH = ROOT / "service-access.schema.json"
@@ -66,25 +67,24 @@ class ServiceAccessContracts:
         self.example = _pr.load_strict_json(SERVICE_ACCESS_EXAMPLE_PATH)
         defs = self.schema.get("$defs", {})
         names = (
-            "identifier",
-            "sha256Ref",
-            "providerRef",
-            "schemaRef",
-            "connectorRef",
-            "operationRef",
-            "producerRef",
-            "policyRef",
-            "registryRef",
-            "strategyRef",
-            "repositoryRef",
-            "twinRef",
+            "identifier", "sha256Ref", "providerRef", "schemaRef", "connectorRef",
+            "operationRef", "producerRef", "policyRef", "registryRef", "strategyRef",
+            "repositoryRef", "twinRef",
         )
         self.patterns = {name: re.compile(defs[name]["pattern"]) for name in names}
+        self.max_lengths: dict[str, int | None] = {
+            name: defs[name].get("maxLength") for name in names
+        }
 
     def ref(self, name: str, value: Any) -> str:
-        if not isinstance(value, str) or self.patterns[name].fullmatch(value) is None:
+        max_len = self.max_lengths[name]
+        if (
+            not isinstance(value, str)
+            or (max_len is not None and len(value) > max_len)
+            or self.patterns[name].fullmatch(value) is None
+        ):
             raise ContractError(f"SVCACCESS-REF-001: invalid {name}")
-        return value
+        return _pr.validate_safe_uri_segments(value, f"SVCACCESS-REF-001: invalid {name}")
 
     def integrity(self) -> None:
         if self.schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
@@ -107,18 +107,9 @@ def _validate_service_profile(
     profile_keys: set[tuple[str, str, str]],
 ) -> None:
     keys = {
-        "id",
-        "providerRefs",
-        "serviceTypes",
-        "mode",
-        "accountEvidence",
-        "credentialEvidence",
-        "governance",
-        "connector",
-        "mutationControl",
-        "readback",
-        "producedCredentialKinds",
-        "boundary",
+        "id", "providerRefs", "serviceTypes", "mode", "accountEvidence",
+        "credentialEvidence", "governance", "connector", "mutationControl",
+        "readback", "producedCredentialKinds", "boundary",
     }
     profile = exact(profile, keys)
     profile_id = c.ref("identifier", profile["id"])
@@ -134,9 +125,9 @@ def _validate_service_profile(
         if service_type not in service_types:
             raise ContractError("SVCACCESS-DOC-001: profile uses undeclared service type")
         covered.add(service_type)
-    mode = profile["mode"]
-    if mode not in {"observe", "provision"}:
-        raise ContractError("SVCACCESS-DOC-001: unsupported profile mode")
+    mode = str_choice(
+        profile["mode"], {"observe", "provision"}, "SVCACCESS-DOC-001: unsupported profile mode"
+    )
     for provider in providers:
         for service_type in profile_services:
             key = (provider, service_type, mode)
@@ -145,11 +136,8 @@ def _validate_service_profile(
             profile_keys.add(key)
 
     acct_keys = {
-        "accountContractRef",
-        "accountQueryOperationRefs",
-        "requiredRelation",
-        "liveObservationRequired",
-        "freshnessRequired",
+        "accountContractRef", "accountQueryOperationRefs",
+        "requiredRelation", "liveObservationRequired", "freshnessRequired",
     }
     account = exact(profile["accountEvidence"], acct_keys)
     c.ref("schemaRef", account["accountContractRef"])
@@ -165,10 +153,8 @@ def _validate_service_profile(
         raise ContractError("SVCACCESS-ACCOUNT-001: parent account evidence is insufficient")
 
     cred_keys = {
-        "metadataQueryOperationRef",
-        "metadataOnly",
-        "requiredFieldKinds",
-        "targetBindingRequired",
+        "metadataQueryOperationRef", "metadataOnly",
+        "requiredFieldKinds", "targetBindingRequired",
     }
     credential = exact(profile["credentialEvidence"], cred_keys)
     c.ref("operationRef", credential["metadataQueryOperationRef"])
@@ -178,12 +164,11 @@ def _validate_service_profile(
         c.ref("identifier", kind)
 
     governance = exact(profile["governance"], {"policyRefs", "registryRefs", "strategyRefs"})
-    gov_fields = (
+    for field, ref_type in (
         ("policyRefs", "policyRef"),
         ("registryRefs", "registryRef"),
         ("strategyRefs", "strategyRef"),
-    )
-    for field, ref_type in gov_fields:
+    ):
         for ref in unique_list(governance[field], "SVCACCESS-REF-001", minimum=1):
             c.ref(ref_type, ref)
 
@@ -203,21 +188,14 @@ def _validate_service_profile(
         c.ref("producerRef", connector["producerIntentRef"])
 
     ctrl_keys = {
-        "mode",
-        "twoPhase",
-        "planHashRequired",
-        "externalSingleUseGrantRequired",
-        "applyReceiptRequired",
+        "mode", "twoPhase", "planHashRequired",
+        "externalSingleUseGrantRequired", "applyReceiptRequired",
     }
     control = exact(profile["mutationControl"], ctrl_keys)
 
     rb_keys = {
-        "queryOperationRefs",
-        "twinRef",
-        "blueprintRef",
-        "revisionRequired",
-        "independentObservationRequired",
-        "updatesInventory",
+        "queryOperationRefs", "twinRef", "blueprintRef",
+        "revisionRequired", "independentObservationRequired", "updatesInventory",
     }
     readback = exact(profile["readback"], rb_keys)
     for ref in unique_list(readback["queryOperationRefs"], "SVCACCESS-REF-001", minimum=1):
@@ -240,10 +218,8 @@ def _validate_service_profile(
     for kind in produced:
         c.ref("identifier", kind)
     pb_keys = {
-        "knowledgeGrantsAuthority",
-        "credentialValuesAllowed",
-        "parentAccountMustBeVerified",
-        "accountCreation",
+        "knowledgeGrantsAuthority", "credentialValuesAllowed",
+        "parentAccountMustBeVerified", "accountCreation",
     }
     profile_boundary = exact(profile["boundary"], pb_keys)
     if (
@@ -252,9 +228,11 @@ def _validate_service_profile(
         or profile_boundary["parentAccountMustBeVerified"] is not True
     ):
         raise ContractError("SVCACCESS-AUTHORITY-001: profile boundary is unsafe")
-    account_creation = profile_boundary["accountCreation"]
-    if account_creation not in {"none", "provider-child"}:
-        raise ContractError("SVCACCESS-ACCOUNT-001: provider account creation is forbidden")
+    account_creation = str_choice(
+        profile_boundary["accountCreation"],
+        {"none", "provider-child"},
+        "SVCACCESS-ACCOUNT-001: provider account creation is forbidden",
+    )
 
     if mode == "observe":
         if (
@@ -278,14 +256,8 @@ def _validate_service_profile(
 def validate_service_access(c: ServiceAccessContracts, value: Any) -> None:
     _pr.reject_secret_material(value, "SVCACCESS-SECRET-001: credential material is forbidden")
     keys = {
-        "$schema",
-        "schema",
-        "catalogId",
-        "sourceRevision",
-        "serviceTypes",
-        "profiles",
-        "gaps",
-        "boundary",
+        "$schema", "schema", "catalogId", "sourceRevision",
+        "serviceTypes", "profiles", "gaps", "boundary",
     }
     value = exact(value, keys)
     if (
@@ -323,12 +295,8 @@ def validate_service_access(c: ServiceAccessContracts, value: Any) -> None:
         gap = exact(
             gap,
             {
-                "serviceType",
-                "providerRef",
-                "mode",
-                "reasonCode",
-                "requiredOwnerRef",
-                "requiredCapability",
+                "serviceType", "providerRef", "mode",
+                "reasonCode", "requiredOwnerRef", "requiredCapability",
             },
         )
         service_type = c.ref("identifier", gap["serviceType"])
@@ -336,12 +304,13 @@ def validate_service_access(c: ServiceAccessContracts, value: Any) -> None:
             raise ContractError("SVCACCESS-GAP-001: gap uses undeclared service type")
         covered.add(service_type)
         provider = c.ref("providerRef", gap["providerRef"])
-        if gap["mode"] not in {"observe", "provision"}:
-            raise ContractError("SVCACCESS-GAP-001: unsupported gap mode")
+        gap_mode = str_choice(
+            gap["mode"], {"observe", "provision"}, "SVCACCESS-GAP-001: unsupported gap mode"
+        )
         c.ref("identifier", gap["reasonCode"])
         c.ref("repositoryRef", gap["requiredOwnerRef"])
         c.ref("identifier", gap["requiredCapability"])
-        key = (provider, service_type, gap["mode"])
+        key = (provider, service_type, gap_mode)
         if key in gap_keys or key in profile_keys:
             raise ContractError("SVCACCESS-GAP-001: gap contradicts declared profile coverage")
         gap_keys.add(key)
@@ -368,93 +337,97 @@ def run_service_access_conformance() -> dict[str, Any]:
         else:
             raise AssertionError(f"service-access adversarial case accepted: {name}")
 
-    reject_case(
-        "catalog-acts", "SVCACCESS-AUTHORITY-001", lambda d: d["boundary"].update(acts=True)
-    )
-    reject_case(
-        "supervisor-adds-operation",
-        "SVCACCESS-AUTHORITY-001",
-        lambda d: d["boundary"].update(supervisorMayAddOperations=True),
-    )
-    reject_case(
-        "unverified-parent-account",
-        "SVCACCESS-ACCOUNT-001",
-        lambda d: d["profiles"][0]["accountEvidence"].update(requiredRelation="account_inferred"),
-    )
-    reject_case(
-        "stale-parent-account",
-        "SVCACCESS-ACCOUNT-001",
-        lambda d: d["profiles"][0]["accountEvidence"].update(freshnessRequired=False),
-    )
-    reject_case(
-        "observe-mutation",
-        "SVCACCESS-MUTATION-001",
-        lambda d: d["profiles"][1]["connector"].update(
-            mutationOperationRef="operation://example.test/hosting/subscription/create/v1"
+    cases: tuple[tuple[str, str, Callable[[dict[str, Any]], Any]], ...] = (
+        ("catalog-acts", "SVCACCESS-AUTHORITY-001", lambda d: d["boundary"].update(acts=True)),
+        (
+            "supervisor-adds-operation",
+            "SVCACCESS-AUTHORITY-001",
+            lambda d: d["boundary"].update(supervisorMayAddOperations=True),
         ),
-    )
-    reject_case(
-        "provision-without-two-phase",
-        "SVCACCESS-MUTATION-001",
-        lambda d: d["profiles"][0]["mutationControl"].update(twoPhase=False),
-    )
-    reject_case(
-        "mutable-operation-ref",
-        "SVCACCESS-REF-001",
-        lambda d: d["profiles"][0]["connector"].update(
-            mutationOperationRef="operation://example.test/hosting/api-key/bootstrap"
+        (
+            "unverified-parent-account",
+            "SVCACCESS-ACCOUNT-001",
+            lambda d: d["profiles"][0]["accountEvidence"].update(
+                requiredRelation="account_inferred"
+            ),
         ),
-    )
-    reject_case(
-        "missing-revisioned-readback",
-        "SVCACCESS-READBACK-001",
-        lambda d: d["profiles"][0]["readback"].update(revisionRequired=False),
-    )
-    reject_case(
-        "unpinned-twin-lifecycle",
-        "SVCACCESS-READBACK-001",
-        lambda d: d["profiles"][0]["readback"]["blueprintRef"].update(immutable=False),
-    )
-    reject_case(
-        "credential-without-producer",
-        "SVCACCESS-MUTATION-001",
-        lambda d: d["profiles"][0]["connector"].pop("producerIntentRef"),
-    )
-    reject_case(
-        "child-without-produced-credential",
-        "SVCACCESS-ACCOUNT-001",
-        lambda d: d["profiles"][2].update(producedCredentialKinds=[]),
-    )
-    reject_case(
-        "provider-account-creation",
-        "SVCACCESS-ACCOUNT-001",
-        lambda d: d["profiles"][2]["boundary"].update(accountCreation="provider-tenant"),
-    )
-    reject_case(
-        "secret-material",
-        "SVCACCESS-SECRET-001",
-        lambda d: d.update(secretMaterial="sk-" + "a" * 30),
-    )
-    reject_case(
-        "undeclared-service-type",
-        "SVCACCESS-DOC-001",
-        lambda d: d["profiles"][0].update(serviceTypes=["undeclared-service"]),
-    )
-    reject_case(
-        "gap-profile-contradiction",
-        "SVCACCESS-GAP-001",
-        lambda d: d["gaps"].append(
-            {
-                "serviceType": "subscription",
-                "providerRef": "provider://example.test/hosting-control-plane",
-                "mode": "observe",
-                "reasonCode": "operation-not-reviewed",
-                "requiredOwnerRef": "repository://example.test/connectors",
-                "requiredCapability": "subscription.inventory",
-            }
+        (
+            "stale-parent-account",
+            "SVCACCESS-ACCOUNT-001",
+            lambda d: d["profiles"][0]["accountEvidence"].update(freshnessRequired=False),
         ),
+        (
+            "observe-mutation",
+            "SVCACCESS-MUTATION-001",
+            lambda d: d["profiles"][1]["connector"].update(
+                mutationOperationRef="operation://example.test/hosting/subscription/create/v1"
+            ),
+        ),
+        (
+            "provision-without-two-phase",
+            "SVCACCESS-MUTATION-001",
+            lambda d: d["profiles"][0]["mutationControl"].update(twoPhase=False),
+        ),
+        (
+            "mutable-operation-ref",
+            "SVCACCESS-REF-001",
+            lambda d: d["profiles"][0]["connector"].update(
+                mutationOperationRef="operation://example.test/hosting/api-key/bootstrap"
+            ),
+        ),
+        (
+            "missing-revisioned-readback",
+            "SVCACCESS-READBACK-001",
+            lambda d: d["profiles"][0]["readback"].update(revisionRequired=False),
+        ),
+        (
+            "unpinned-twin-lifecycle",
+            "SVCACCESS-READBACK-001",
+            lambda d: d["profiles"][0]["readback"]["blueprintRef"].update(immutable=False),
+        ),
+        (
+            "credential-without-producer",
+            "SVCACCESS-MUTATION-001",
+            lambda d: d["profiles"][0]["connector"].pop("producerIntentRef"),
+        ),
+        (
+            "child-without-produced-credential",
+            "SVCACCESS-ACCOUNT-001",
+            lambda d: d["profiles"][2].update(producedCredentialKinds=[]),
+        ),
+        (
+            "provider-account-creation",
+            "SVCACCESS-ACCOUNT-001",
+            lambda d: d["profiles"][2]["boundary"].update(accountCreation="provider-tenant"),
+        ),
+        (
+            "secret-material",
+            "SVCACCESS-SECRET-001",
+            lambda d: d.update(secretMaterial="s" + "k-" + ("a" * 30)),
+        ),
+        (
+            "undeclared-service-type",
+            "SVCACCESS-DOC-001",
+            lambda d: d["profiles"][0].update(serviceTypes=["undeclared-service"]),
+        ),
+        (
+            "gap-profile-contradiction",
+            "SVCACCESS-GAP-001",
+            lambda d: d["gaps"].append(
+                {
+                    "serviceType": "subscription",
+                    "providerRef": "provider://example.test/hosting-control-plane",
+                    "mode": "observe",
+                    "reasonCode": "operation-not-reviewed",
+                    "requiredOwnerRef": "repository://example.test/connectors",
+                    "requiredCapability": "subscription.inventory",
+                }
+            ),
+        ),
+        ("uncovered-service-type", "SVCACCESS-GAP-001", lambda d: d.update(gaps=[])),
     )
-    reject_case("uncovered-service-type", "SVCACCESS-GAP-001", lambda d: d.update(gaps=[]))
+    for name, code, mutate in cases:
+        reject_case(name, code, mutate)
 
     return {
         "schema": "wellmanifest.service-access-conformance/v1",
