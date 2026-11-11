@@ -36,10 +36,10 @@ GRAMMAR_PATH = ROOT / "account-runtime.v1.gbnf"
 SCHEMA_DIGEST = "8abc84eaf6e04fd2c2469bf0b5dbc5682cc450c58a3554c373b177627f0130e6"
 GRAMMAR_DIGEST = "11cd4b8308115d5f6926700c093e6c1dab0d511070777e233adfac99e7d92b74"
 
-STORE_REF_RE = re.compile(r"^store://[a-z0-9.-]+/[A-Za-z0-9._:/-]+$")
-SOURCE_REF_RE = re.compile(r"^(?:store|profile|probe)://[a-z0-9.-]+/[A-Za-z0-9._:/-]+$")
-VOLUME_REF_RE = re.compile(r"^volume://[a-z0-9.-]+/[A-Za-z0-9._:-]+$")
-KVM_CONNECTOR_RE = re.compile(r"^connector://[a-z0-9.-]+/[A-Za-z0-9._:/-]+/v[1-9][0-9]*$")
+STORE_REF_RE = re.compile(r"\Astore://[a-z0-9.-]+/[A-Za-z0-9._:/-]+\Z")
+SOURCE_REF_RE = re.compile(r"\A(?:store|profile|probe)://[a-z0-9.-]+/[A-Za-z0-9._:/-]+\Z")
+VOLUME_REF_RE = re.compile(r"\Avolume://[a-z0-9.-]+/[A-Za-z0-9._:-]+\Z")
+KVM_CONNECTOR_RE = re.compile(r"\Aconnector://[a-z0-9.-]+/[A-Za-z0-9._:/-]+/v[1-9][0-9]*\Z")
 SERVICE_CLASSES = frozenset({"provider", "tool", "generic-service", "unknown"})
 EVIDENCE_KINDS = frozenset(
     {
@@ -96,7 +96,9 @@ class Contracts:
             "evidenceRef", "artifactRef", "schemaRef", "vaultRef", "intentRef",
             "grantRef", "origin",
         )
-        self.patterns = {name: re.compile(defs[name]["pattern"]) for name in names}
+        self.patterns = {
+            name: _pr.compile_anchored_pattern(defs[name]["pattern"]) for name in names
+        }
         self.max_lengths: dict[str, int | None] = {
             name: defs[name].get("maxLength") for name in names
         }

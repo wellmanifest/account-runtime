@@ -1,0 +1,95 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-009",
+  "summary": "Harden account-runtime regular-file inode checks, integer overflow, URI host/colon segments, and regex anchors",
+  "workstream": "integration",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-008/README.md",
+    "project/ticket-009/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "standard/account_primitives.py",
+    "standard/conformance.py",
+    "standard/service_access_conformance.py",
+    "standard/test_account_runtime_hardening.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "e98099a25857d38b5bf596f5985c0b75de24dba7",
+    "targetBranch": "main",
+    "outcome": "Enforce lstat+fstat (st_dev, st_ino) regular-file identity, relative ancestor symlink rejection, and max_bytes integer bounds in read_regular_utf8; reject huge-integer overflow and lone UTF-16 surrogates in strict_loads; block host '..', invalid origin ports, backslash/query/fragment/DEL, and colon-delimited '..' segments in validate_safe_uri_segments; detect open implicit object schemas in assert_closed_schema; anchor all regexes with \\A...\\Z across account_primitives.py, conformance.py, and service_access_conformance.py; add regression tests; and close merged ticket-008.",
+    "nonGoals": [
+      "Do not modify frozen schemas or grammars",
+      "No runtime dependency additions"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 35,
+    "budgets": {
+      "maxImplementationFiles": 6,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add compile_anchored_pattern, lstat+fstat inode identity and relative ancestor symlink checks, strict UTF-8 and numeric leaf finiteness checks, authority/port/colon URI segment validation, and implicit-object closed-schema checks in standard/account_primitives.py, and compile schema patterns with \\A...\\Z anchors in conformance.py and service_access_conformance.py.",
+      "components": [
+        {
+          "name": "account-runtime-validators",
+          "paths": [
+            "standard/account_primitives.py",
+            "standard/conformance.py",
+            "standard/service_access_conformance.py",
+            "standard/test_account_runtime_hardening.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the ticket branch commit via protected PR delivery."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q",
+          "python3 standard/conformance.py --all"
+        ],
+        "evidence": "project/ticket-009/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "ruff check standard tests"
+        ],
+        "evidence": "project/ticket-009/README.md"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh --base origin/main",
+          "wellman check"
+        ],
+        "evidence": "project/ticket-009/README.md"
+      }
+    ]
+  }
+}

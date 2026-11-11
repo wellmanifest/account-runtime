@@ -1,9 +1,9 @@
 # Ticket 008: Harden account-runtime float overflow, huge-int freshness, URI control chars, and service-access maxItems parity
 
 - **ID**: ticket-008
-- **Owner**: unresolved:human
-- **Status**: IN_PROGRESS
-- **Workflow state**: EDIT
+- **Owner**: tom
+- **Status**: DONE
+- **Workflow state**: PUBLICATION
 - **Created**: 2026-11-11
 
 ## Goal and scope

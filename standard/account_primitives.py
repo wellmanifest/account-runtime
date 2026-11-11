@@ -30,32 +30,70 @@ SECRET_MATERIAL = re.compile(
     re.I,
 )
 RFC3339_DT = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$"
+    r"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})\Z"
 )
-EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s.]+\.[^@\s]+$")
+EMAIL_RE = re.compile(
+    r"\A(?!.*\.\.)[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
+    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+\Z"
+)
 
 
 class ContractError(ValueError):
     """A bounded error that never repeats untrusted input."""
 
 
+def compile_anchored_pattern(raw: str) -> re.Pattern[str]:
+    if not isinstance(raw, str) or not raw:
+        raise ContractError("invalid regex pattern")
+    body = raw[1:] if raw.startswith("^") else raw
+    if body.endswith("$") and not body.endswith(r"\$"):
+        body = body[:-1]
+    return re.compile(rf"\A(?:{body})\Z")
+
+
+def _reject_relative_ancestor_symlinks(path: Path) -> None:
+    if path.is_absolute():
+        return
+    cur = Path()
+    for part in path.parts[:-1]:
+        if part in ("", "."):
+            continue
+        cur = cur / part
+        try:
+            st = os.lstat(cur)
+        except OSError as error:
+            raise ContractError("unable to open input path ancestor") from error
+        if stat.S_ISLNK(st.st_mode):
+            raise ContractError("symlinked input ancestor is forbidden")
+
+
 def read_regular_utf8(path: Path, max_bytes: int = MAX_INPUT_BYTES) -> str:
-    if path.is_symlink():
-        raise ContractError("symlinked input path is forbidden")
+    if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 1:
+        raise ContractError("invalid maximum byte size")
+    if not isinstance(path, (Path, str)):
+        raise ContractError("invalid input path")
+    candidate = path if isinstance(path, Path) else Path(path)
+    _reject_relative_ancestor_symlinks(candidate)
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
-        fd = os.open(path, flags)
+        lst = os.lstat(candidate)
+        if not stat.S_ISREG(lst.st_mode):
+            raise ContractError("symlinked or non-regular input path is forbidden")
+        fd = os.open(candidate, flags)
     except OSError as error:
         raise ContractError("unable to open input file") from error
     try:
         info = os.fstat(fd)
         if not stat.S_ISREG(info.st_mode):
             raise ContractError("input path must be a regular file")
+        if (lst.st_dev, lst.st_ino) != (info.st_dev, info.st_ino):
+            raise ContractError("input file identity changed during open")
         if info.st_size > max_bytes:
             raise ContractError("input file exceeds maximum size")
         chunks: list[bytes] = []
         total = 0
-        while chunk := os.read(fd, 65536):
+        while chunk := os.read(fd, min(65536, max_bytes + 1 - total)):
             total += len(chunk)
             if total > max_bytes:
                 raise ContractError("input file exceeds maximum size")
@@ -70,6 +108,22 @@ def read_regular_utf8(path: Path, max_bytes: int = MAX_INPUT_BYTES) -> str:
         raise ContractError("input file is not valid UTF-8") from error
 
 
+def _check_finite_number(value: int | float) -> None:
+    try:
+        finite = math.isfinite(float(value))
+    except OverflowError as error:
+        raise ContractError("non-finite JSON number is forbidden") from error
+    if not finite:
+        raise ContractError("non-finite JSON number is forbidden")
+
+
+def _check_utf8_str(value: str) -> None:
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as error:
+        raise ContractError("lone UTF-16 surrogate is forbidden") from error
+
+
 def _check_json_depth(value: Any, max_depth: int = MAX_JSON_DEPTH) -> None:
     stack: list[tuple[Any, int]] = [(value, 0)]
     while stack:
@@ -80,12 +134,17 @@ def _check_json_depth(value: Any, max_depth: int = MAX_JSON_DEPTH) -> None:
             for key, child in current.items():
                 if not isinstance(key, str):
                     raise ContractError("JSON object key must be a string")
+                _check_utf8_str(key)
                 stack.append((child, depth + 1))
         elif isinstance(current, list):
             if depth >= max_depth:
                 raise ContractError("JSON nesting exceeds maximum depth")
             for child in current:
                 stack.append((child, depth + 1))
+        elif isinstance(current, str):
+            _check_utf8_str(current)
+        elif isinstance(current, (int, float)) and not isinstance(current, bool):
+            _check_finite_number(current)
 
 
 def _unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -111,10 +170,13 @@ def _parse_finite_float(token: str) -> float:
 
 
 def strict_loads(raw: str) -> Any:
-    if (
-        not isinstance(raw, str)
-        or len(raw.encode("utf-8", errors="surrogatepass")) > MAX_INPUT_BYTES
-    ):
+    if not isinstance(raw, str):
+        raise ContractError("JSON input must be a string")
+    try:
+        encoded = raw.encode("utf-8")
+    except UnicodeEncodeError as error:
+        raise ContractError("invalid UTF-8 JSON input") from error
+    if len(encoded) > MAX_INPUT_BYTES:
         raise ContractError("JSON input exceeds maximum size")
     try:
         parsed = json.loads(
@@ -131,8 +193,8 @@ def strict_loads(raw: str) -> Any:
     return parsed
 
 
-def load_strict_json(path: Path) -> Any:
-    return strict_loads(read_regular_utf8(path))
+def load_strict_json(path: Path, max_bytes: int = MAX_INPUT_BYTES) -> Any:
+    return strict_loads(read_regular_utf8(path, max_bytes=max_bytes))
 
 
 def canonical(value: Any) -> str:
@@ -167,12 +229,48 @@ def str_choice(value: Any, allowed: set[str] | frozenset[str], message: str) -> 
 
 
 def validate_safe_uri_segments(uri: str, message: str = "unsafe URI path segment") -> str:
-    if any(ch.isspace() or ord(ch) < 32 for ch in uri):
+    if (
+        not isinstance(uri, str)
+        or not uri
+        or any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127 for ch in uri)
+        or any(ch in uri for ch in ("\\", "?", "#"))
+    ):
         raise ContractError(message)
     if "://" in uri:
         rest = uri.partition("://")[2]
-        if "//" in rest or any(seg in {".", ".."} for seg in rest.split("/")[1:]):
+        if (
+            not rest
+            or rest[0] in {"/", ":"}
+            or rest[-1] in {"/", ":"}
+            or "//" in rest
+            or "::" in rest
+        ):
             raise ContractError(message)
+        authority, slash, path = rest.partition("/")
+        host, port_sep, port = authority.partition(":")
+        if (
+            not host
+            or host in {".", ".."}
+            or host.startswith(".")
+            or host.endswith(".")
+            or ".." in host
+        ):
+            raise ContractError(message)
+        if port_sep and (
+            ":" in port or not port.isdigit() or not 1 <= int(port) <= 65535
+        ):
+            raise ContractError(message)
+        if slash and (
+            not path or any(seg in {"", ".", ".."} for seg in re.split(r"[/:]", path))
+        ):
+            raise ContractError(message)
+    elif ":" in uri and (
+        uri[0] == ":"
+        or uri[-1] == ":"
+        or "::" in uri
+        or any(seg in {"", ".", ".."} for seg in uri.split(":"))
+    ):
+        raise ContractError(message)
     return uri
 
 
@@ -224,17 +322,22 @@ def unique_list(
 
 
 def assert_closed_schema(node: Any, error_message: str = "object schema is not closed") -> None:
-    map_keys = {"properties", "$defs", "dependentSchemas"}
-    predicate_keys = {"if", "not", "contains"}
-    stack: list[tuple[Any, int, bool]] = [(node, 0, False)]
+    map_keys = {"properties", "patternProperties", "$defs", "dependentSchemas"}
+    predicate_keys = {"if", "not", "contains", "propertyNames"}
+    overlay_keys = predicate_keys | {"then", "else", "allOf"}
+    stack: list[tuple[Any, int, bool, bool]] = [(node, 0, False, False)]
     while stack:
-        current, depth, is_map = stack.pop()
+        current, depth, is_map, in_overlay = stack.pop()
         if depth > MAX_JSON_DEPTH:
             raise ContractError("schema nesting exceeds maximum depth")
         if isinstance(current, dict):
+            is_explicit_obj = current.get("type") == "object"
+            is_implicit_obj = not in_overlay and (
+                "properties" in current or "patternProperties" in current
+            )
             if (
                 not is_map
-                and current.get("type") == "object"
+                and (is_explicit_obj or is_implicit_obj)
                 and current.get("additionalProperties") is not False
             ):
                 raise ContractError(error_message)
@@ -243,10 +346,12 @@ def assert_closed_schema(node: Any, error_message: str = "object schema is not c
                     raise ContractError("schema object key must be a string")
                 if not is_map and key in predicate_keys:
                     continue
-                stack.append((child, depth + 1, not is_map and key in map_keys))
+                child_map = not is_map and key in map_keys
+                child_overlay = in_overlay or (not is_map and key in overlay_keys)
+                stack.append((child, depth + 1, child_map, child_overlay))
         elif isinstance(current, list):
             for child in current:
-                stack.append((child, depth + 1, False))
+                stack.append((child, depth + 1, False, in_overlay))
 
 
 def reject_sensitive_keys(value: Any) -> None:
