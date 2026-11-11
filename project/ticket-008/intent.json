@@ -1,0 +1,93 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-008",
+  "summary": "Harden account-runtime float overflow, huge-int freshness, URI control chars, and service-access maxItems parity",
+  "workstream": "integration",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-007/README.md",
+    "project/ticket-008/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "standard/account_primitives.py",
+    "standard/service_access_conformance.py",
+    "standard/test_account_runtime_hardening.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "292c8a76e7e966b449bd0b34de655505faa4bd25",
+    "targetBranch": "main",
+    "outcome": "Reject JSON float overflow (1e999) in strict_loads, catch huge-integer OverflowError fail-closed in _finite_number and canonical, reject control/whitespace characters in validate_safe_uri_segments, enforce full maxItems schema parity across service_access_conformance.py (<500 lines), add regression tests, and close merged ticket-007.",
+    "nonGoals": [
+      "Do not modify frozen schemas or grammars",
+      "No runtime dependency additions"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add _parse_finite_float, OverflowError guards, URI control/whitespace checks, and conditional-predicate schema walking in standard/account_primitives.py and pass explicit maximum bounds to bounded_list/unique_list in standard/service_access_conformance.py.",
+      "components": [
+        {
+          "name": "account-runtime-validators",
+          "paths": [
+            "standard/account_primitives.py",
+            "standard/service_access_conformance.py",
+            "standard/test_account_runtime_hardening.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the ticket branch commit via protected PR delivery."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q",
+          "python3 standard/conformance.py --all"
+        ],
+        "evidence": "project/ticket-008/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "ruff check standard tests"
+        ],
+        "evidence": "project/ticket-008/README.md"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh --base origin/main",
+          "wellman check"
+        ],
+        "evidence": "project/ticket-008/README.md"
+      }
+    ]
+  }
+}

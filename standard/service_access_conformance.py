@@ -116,10 +116,14 @@ def _validate_service_profile(
     if profile_id in profile_ids:
         raise ContractError("SVCACCESS-DOC-001: duplicate profile")
     profile_ids.add(profile_id)
-    providers = unique_list(profile["providerRefs"], "SVCACCESS-REF-001", minimum=1)
+    providers = unique_list(
+        profile["providerRefs"], "SVCACCESS-REF-001", minimum=1, maximum=16
+    )
     for ref in providers:
         c.ref("providerRef", ref)
-    profile_services = unique_list(profile["serviceTypes"], "SVCACCESS-DOC-001", minimum=1)
+    profile_services = unique_list(
+        profile["serviceTypes"], "SVCACCESS-DOC-001", minimum=1, maximum=32
+    )
     for service_type in profile_services:
         c.ref("identifier", service_type)
         if service_type not in service_types:
@@ -143,7 +147,9 @@ def _validate_service_profile(
     c.ref("schemaRef", account["accountContractRef"])
     if account["accountContractRef"] != "schema://wellmanifest.dev/account-runtime/v1":
         raise ContractError("SVCACCESS-ACCOUNT-001: parent account contract is not pinned")
-    for ref in unique_list(account["accountQueryOperationRefs"], "SVCACCESS-REF-001", minimum=1):
+    for ref in unique_list(
+        account["accountQueryOperationRefs"], "SVCACCESS-REF-001", minimum=1, maximum=32
+    ):
         c.ref("operationRef", ref)
     if (
         account["requiredRelation"] != "account_verified"
@@ -160,7 +166,9 @@ def _validate_service_profile(
     c.ref("operationRef", credential["metadataQueryOperationRef"])
     if credential["metadataOnly"] is not True or credential["targetBindingRequired"] is not True:
         raise ContractError("SVCACCESS-SECRET-001: credential evidence is not metadata-only")
-    for kind in unique_list(credential["requiredFieldKinds"], "SVCACCESS-DOC-001"):
+    for kind in unique_list(
+        credential["requiredFieldKinds"], "SVCACCESS-DOC-001", maximum=64
+    ):
         c.ref("identifier", kind)
 
     governance = exact(profile["governance"], {"policyRefs", "registryRefs", "strategyRefs"})
@@ -169,7 +177,9 @@ def _validate_service_profile(
         ("registryRefs", "registryRef"),
         ("strategyRefs", "strategyRef"),
     ):
-        for ref in unique_list(governance[field], "SVCACCESS-REF-001", minimum=1):
+        for ref in unique_list(
+            governance[field], "SVCACCESS-REF-001", minimum=1, maximum=16
+        ):
             c.ref(ref_type, ref)
 
     connector = exact(
@@ -178,9 +188,13 @@ def _validate_service_profile(
         {"mutationOperationRef", "producerIntentRef"},
     )
     c.ref("connectorRef", connector["connectorRef"])
-    for capability in unique_list(connector["capabilities"], "SVCACCESS-DOC-001", minimum=1):
+    for capability in unique_list(
+        connector["capabilities"], "SVCACCESS-DOC-001", minimum=1, maximum=64
+    ):
         c.ref("identifier", capability)
-    for ref in unique_list(connector["preflightOperationRefs"], "SVCACCESS-REF-001", minimum=1):
+    for ref in unique_list(
+        connector["preflightOperationRefs"], "SVCACCESS-REF-001", minimum=1, maximum=32
+    ):
         c.ref("operationRef", ref)
     if "mutationOperationRef" in connector:
         c.ref("operationRef", connector["mutationOperationRef"])
@@ -198,7 +212,9 @@ def _validate_service_profile(
         "revisionRequired", "independentObservationRequired", "updatesInventory",
     }
     readback = exact(profile["readback"], rb_keys)
-    for ref in unique_list(readback["queryOperationRefs"], "SVCACCESS-REF-001", minimum=1):
+    for ref in unique_list(
+        readback["queryOperationRefs"], "SVCACCESS-REF-001", minimum=1, maximum=32
+    ):
         c.ref("operationRef", ref)
     c.ref("twinRef", readback["twinRef"])
     bp_keys = {"blueprintId", "version", "definitionUri", "definitionDigest", "immutable"}
@@ -214,7 +230,9 @@ def _validate_service_profile(
             "SVCACCESS-READBACK-001: Twin readback is not independent and revisioned"
         )
 
-    produced = unique_list(profile["producedCredentialKinds"], "SVCACCESS-DOC-001")
+    produced = unique_list(
+        profile["producedCredentialKinds"], "SVCACCESS-DOC-001", maximum=64
+    )
     for kind in produced:
         c.ref("identifier", kind)
     pb_keys = {
@@ -273,25 +291,31 @@ def validate_service_access(c: ServiceAccessContracts, value: Any) -> None:
         raise ContractError("SVCACCESS-AUTHORITY-001: catalog boundary is unsafe")
 
     service_types: set[str] = set()
-    for item in bounded_list(value["serviceTypes"], "SVCACCESS-DOC-001", minimum=1):
+    for item in bounded_list(
+        value["serviceTypes"], "SVCACCESS-DOC-001", minimum=1, maximum=128
+    ):
         item = exact(item, {"id", "protocols", "credentialKinds"})
         service_type = c.ref("identifier", item["id"])
         if service_type in service_types:
             raise ContractError("SVCACCESS-DOC-001: duplicate service type")
         service_types.add(service_type)
-        for protocol in unique_list(item["protocols"], "SVCACCESS-DOC-001", minimum=1):
+        for protocol in unique_list(
+            item["protocols"], "SVCACCESS-DOC-001", minimum=1, maximum=32
+        ):
             c.ref("identifier", protocol)
-        for kind in unique_list(item["credentialKinds"], "SVCACCESS-DOC-001"):
+        for kind in unique_list(
+            item["credentialKinds"], "SVCACCESS-DOC-001", maximum=64
+        ):
             c.ref("identifier", kind)
 
     profile_ids: set[str] = set()
     covered: set[str] = set()
     profile_keys: set[tuple[str, str, str]] = set()
-    for profile in bounded_list(value["profiles"], "SVCACCESS-DOC-001"):
+    for profile in bounded_list(value["profiles"], "SVCACCESS-DOC-001", maximum=256):
         _validate_service_profile(c, profile, service_types, profile_ids, covered, profile_keys)
 
     gap_keys: set[tuple[str, str, str]] = set()
-    for gap in bounded_list(value["gaps"], "SVCACCESS-GAP-001"):
+    for gap in bounded_list(value["gaps"], "SVCACCESS-GAP-001", maximum=256):
         gap = exact(
             gap,
             {
