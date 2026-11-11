@@ -263,6 +263,40 @@ class AccountRuntimeHardeningTests(unittest.TestCase):
                 self.assertIsNotNone(pattern.match(valid_text))
                 self.assertIsNone(pattern.match(valid_text + "\n"))
 
+    def test_4300_digit_ints_abs_ancestor_symlinks_key_secrets_and_digest_utf8(self) -> None:
+        for bad_json in (
+            '{"n": ' + ("9" * 5000) + "}",
+            '{"\\udfff": 1}',
+            '{"a": "\\ud800"}',
+        ):
+            with self.subTest(sample=bad_json[:24]), self.assertRaises(pr.ContractError):
+                pr.strict_loads(bad_json)
+
+        with self.assertRaises(pr.ContractError):
+            pr.digest("bad-\ud800")
+        with self.assertRaises(pr.ContractError):
+            pr.digest(123)  # type: ignore[arg-type]
+
+        synthetic_cred = "gh" + "p_" + ("A" * 24)
+        with self.assertRaises(pr.ContractError):
+            pr.reject_secret_material({synthetic_cred: "ok"})
+        for bad_obj in ({"a": "\ud800"}, {"\udfff": 1}):
+            with self.assertRaises(pr.ContractError):
+                pr.reject_secret_material(bad_obj)
+            with self.assertRaises(pr.ContractError):
+                pr.reject_sensitive_keys(bad_obj)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            real_dir = root / "real_dir" / "sub"
+            real_dir.mkdir(parents=True)
+            doc = real_dir / "account.json"
+            doc.write_text('{"ok": 1}', encoding="utf-8")
+            sym_dir = root / "sym_dir"
+            sym_dir.symlink_to(root / "real_dir")
+            with self.assertRaises(pr.ContractError):
+                pr.read_regular_utf8(sym_dir / "sub" / "account.json")
+
 
 if __name__ == "__main__":
     unittest.main()

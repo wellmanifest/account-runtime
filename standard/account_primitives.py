@@ -52,8 +52,17 @@ def compile_anchored_pattern(raw: str) -> re.Pattern[str]:
     return re.compile(rf"\A(?:{body})\Z")
 
 
-def _reject_relative_ancestor_symlinks(path: Path) -> None:
+def _reject_ancestor_symlinks(path: Path) -> None:
     if path.is_absolute():
+        for anc in path.parents:
+            if len(anc.parts) <= 2:
+                break
+            try:
+                st = os.lstat(anc)
+            except OSError as error:
+                raise ContractError("unable to open input path ancestor") from error
+            if stat.S_ISLNK(st.st_mode):
+                raise ContractError("symlinked input ancestor is forbidden")
         return
     cur = Path()
     for part in path.parts[:-1]:
@@ -74,7 +83,7 @@ def read_regular_utf8(path: Path, max_bytes: int = MAX_INPUT_BYTES) -> str:
     if not isinstance(path, (Path, str)):
         raise ContractError("invalid input path")
     candidate = path if isinstance(path, Path) else Path(path)
-    _reject_relative_ancestor_symlinks(candidate)
+    _reject_ancestor_symlinks(candidate)
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
         lst = os.lstat(candidate)
@@ -187,7 +196,7 @@ def strict_loads(raw: str) -> Any:
         )
     except ContractError:
         raise
-    except (json.JSONDecodeError, RecursionError) as error:
+    except (json.JSONDecodeError, RecursionError, ValueError) as error:
         raise ContractError("invalid JSON document") from error
     _check_json_depth(parsed)
     return parsed
@@ -208,6 +217,9 @@ def canonical(value: Any) -> str:
 
 
 def digest(value: str) -> str:
+    if not isinstance(value, str):
+        raise ContractError("digest input must be a string")
+    _check_utf8_str(value)
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
@@ -364,12 +376,15 @@ def reject_sensitive_keys(value: Any) -> None:
             for key, child in current.items():
                 if not isinstance(key, str):
                     raise ContractError("JSON object key must be a string")
+                _check_utf8_str(key)
                 if SENSITIVE_KEY.search(key) and key not in SAFE_SECURITY_ASSERTIONS:
                     raise ContractError("sensitive data channel")
                 stack.append((child, depth + 1))
         elif isinstance(current, list):
             for child in current:
                 stack.append((child, depth + 1))
+        elif isinstance(current, str):
+            _check_utf8_str(current)
 
 
 def reject_secret_material(
@@ -384,12 +399,17 @@ def reject_secret_material(
             for key, child in current.items():
                 if not isinstance(key, str):
                     raise ContractError("JSON object key must be a string")
+                _check_utf8_str(key)
+                if SECRET_MATERIAL.search(key):
+                    raise ContractError(error_message)
                 stack.append((child, depth + 1))
         elif isinstance(current, list):
             for child in current:
                 stack.append((child, depth + 1))
-        elif isinstance(current, str) and SECRET_MATERIAL.search(current):
-            raise ContractError(error_message)
+        elif isinstance(current, str):
+            _check_utf8_str(current)
+            if SECRET_MATERIAL.search(current):
+                raise ContractError(error_message)
 
 
 def _finite_number(value: Any) -> float | None:

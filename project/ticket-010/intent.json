@@ -1,0 +1,91 @@
+{
+  "allowedPaths": [
+    "project/ticket-009/README.md",
+    "project/ticket-010/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "standard/account_primitives.py",
+    "standard/test_account_runtime_hardening.py"
+  ],
+  "classification": {
+    "kind": "BUG",
+    "origin": "health",
+    "priority": "P1"
+  },
+  "conflictsWith": [],
+  "delivery": {
+    "acceptedBaseSha": "684a5cb8b7488197c5e5dd1e635841b7705d3c76",
+    "architecture": {
+      "components": [
+        {
+          "name": "account-runtime-validators",
+          "paths": [
+            "standard/account_primitives.py",
+            "standard/test_account_runtime_hardening.py"
+          ]
+        }
+      ],
+      "dataChanges": [],
+      "decision": "Catch 4300-digit integer ValueError in strict_loads, extend symlink-ancestor rejection in read_regular_utf8 to absolute paths, validate strict UTF-8 in digest, scan JSON object keys and lone surrogates in reject_secret_material and reject_sensitive_keys, and mark merged ticket-009 DONE.",
+      "interfaceChanges": [],
+      "responsibilityChanges": false,
+      "rollback": "Revert the ticket branch commit via protected PR delivery.",
+      "status": "accepted",
+      "ui": {
+        "evidence": [],
+        "impact": "none",
+        "states": []
+      }
+    },
+    "budgets": {
+      "maxAffectedComponents": 1,
+      "maxImplementationFiles": 3,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "nonGoals": [
+      "Do not modify frozen schemas or grammars",
+      "No runtime dependency additions"
+    ],
+    "outcome": "Deterministic ContractError rejection of 4300+ digit JSON integers, absolute-path symlink ancestors, secret-bearing JSON keys, and lone UTF-16 surrogates in digest/tree walkers while keeping all modules below 500 lines and closing merged ticket-009.",
+    "runtimeDependencies": [],
+    "targetBranch": "main",
+    "validation": [
+      {
+        "commands": [
+          "pytest -q",
+          "python3 standard/conformance.py --all"
+        ],
+        "criterion": "AC-01",
+        "evidence": "project/ticket-010/README.md"
+      },
+      {
+        "commands": [
+          "ruff check --no-cache standard tests"
+        ],
+        "criterion": "AC-02",
+        "evidence": "project/ticket-010/README.md"
+      },
+      {
+        "commands": [
+          "./project/governance-check.sh --base origin/main",
+          "wellman check"
+        ],
+        "criterion": "AC-03",
+        "evidence": "project/ticket-010/README.md"
+      }
+    ]
+  },
+  "dependsOn": [],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "integrationTicket": null,
+  "schema": "new-project.intent/v3",
+  "stacks": [],
+  "summary": "Harden account-runtime 4300-digit JSON ints, absolute symlink ancestors, key secret scanning, and digest UTF-8",
+  "ticket": "ticket-010",
+  "workstream": "integration"
+}
