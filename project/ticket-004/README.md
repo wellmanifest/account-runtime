@@ -1,9 +1,9 @@
 # Ticket 004: define INV-AR-004 observation freshness and budget metric degradation standard
 
 - **ID**: ticket-004
-- **Owner**: agent:antigravity
-- **Status**: IN_PROGRESS
-- **Workflow state**: EDIT
+- **Owner**: tom
+- **Status**: DONE
+- **Workflow state**: PUBLICATION
 - **Created**: 2026-10-11
 
 ## Goal and scope
