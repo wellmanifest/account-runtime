@@ -1,0 +1,95 @@
+{
+  "allowedPaths": [
+    "project/ticket-010/README.md",
+    "project/ticket-011/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "standard/account_io.py",
+    "standard/account_primitives.py",
+    "standard/conformance.py",
+    "standard/test_account_runtime_hardening.py"
+  ],
+  "classification": {
+    "kind": "BUG",
+    "origin": "health",
+    "priority": "P1"
+  },
+  "conflictsWith": [],
+  "delivery": {
+    "acceptedBaseSha": "9f946a5ed628f403d7f9d296e49b4761cc87b4fe",
+    "architecture": {
+      "components": [
+        {
+          "name": "account-runtime-validators",
+          "paths": [
+            "standard/account_io.py",
+            "standard/account_primitives.py",
+            "standard/conformance.py",
+            "standard/test_account_runtime_hardening.py"
+          ]
+        }
+      ],
+      "dataChanges": [],
+      "decision": "Extract bounded regular-file/JSON I/O and secret scanning into standard/account_io.py and rebalance standard/account_primitives.py and standard/conformance.py well below 500 lines while hardening relative/dotdot symlink-parent checks, pre-int() JSON digit bounds, and service-name control-character validation, and marking merged ticket-010 DONE.",
+      "interfaceChanges": [],
+      "responsibilityChanges": false,
+      "rollback": "Revert the ticket branch commit via protected PR delivery.",
+      "status": "accepted",
+      "ui": {
+        "evidence": [],
+        "impact": "none",
+        "states": []
+      }
+    },
+    "budgets": {
+      "maxAffectedComponents": 1,
+      "maxImplementationFiles": 5,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "nonGoals": [
+      "Do not modify frozen schemas or grammars",
+      "No runtime dependency additions"
+    ],
+    "outcome": "All standard/*.py modules stay well under 500 lines, relative/dotdot symlink-parent traversal, 310+ digit JSON integers, and control characters in service names raise ContractError deterministically, and merged ticket-010 is closed.",
+    "runtimeDependencies": [],
+    "targetBranch": "main",
+    "validation": [
+      {
+        "commands": [
+          "pytest -q",
+          "python3 standard/conformance.py --all"
+        ],
+        "criterion": "AC-01",
+        "evidence": "project/ticket-011/README.md"
+      },
+      {
+        "commands": [
+          "ruff check --no-cache standard"
+        ],
+        "criterion": "AC-02",
+        "evidence": "project/ticket-011/README.md"
+      },
+      {
+        "commands": [
+          "./project/governance-check.sh --base origin/main",
+          "wellman check"
+        ],
+        "criterion": "AC-03",
+        "evidence": "project/ticket-011/README.md"
+      }
+    ]
+  },
+  "dependsOn": [],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "integrationTicket": null,
+  "schema": "new-project.intent/v3",
+  "stacks": [],
+  "summary": "Modularize account_io and harden relative symlink traversal, JSON digit bounds, and service name controls",
+  "ticket": "ticket-011",
+  "workstream": "integration"
+}
